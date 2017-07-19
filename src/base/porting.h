@@ -52,7 +52,7 @@ extern "C"
 #define INLINE inline
 #elif _MSC_VER >= 1000
 #define STATIC_INLINE __forceinline static
-#define INLINE
+#define INLINE __forceinline
 #else
 #define STATIC_INLINE static
 #define INLINE
@@ -62,10 +62,6 @@ extern "C"
 #define CUB_GCC_VERSION (__GNUC__ * 10000 \
 			 + __GNUC_MINOR__ * 100 \
 			 + __GNUC_PATCHLEVEL__)
-#endif
-
-#if defined(MAC_OS)
-#include <stdlib.h>
 #endif
 
 #if defined (WINDOWS)
@@ -120,16 +116,26 @@ extern "C"
 #include <sys/locking.h>
 #include <windows.h>
 #include <winbase.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <errno.h>
 #include <assert.h>
 
+#if !defined (ENOMSG)
 /* not defined errno on Windows */
 #define ENOMSG      100
+#endif
 
+#if !defined PATH_MAX
 #define PATH_MAX	256
+#endif
+#if !defined NAME_MAX
 #define NAME_MAX	256
+#endif
 
+#if !defined (_MSC_VER) || _MSC_VER < 1700
 #define log2(x)                 (log ((double) x) / log ((double) 2))
+#endif				/* !_MSC_VER || _MSC_VER < 1700 */
   extern char *realpath (const char *path, char *resolved_path);
 #define sleep(sec) Sleep(1000*(sec))
 #define usleep(usec) Sleep((usec)/1000)
@@ -317,7 +323,7 @@ extern "C"
 /*
 #define _setjmp                 setjmp
 */
-#elif !defined(MAC_OS)/* WINDOWS */
+#else				/* WINDOWS */
 
 #if !defined (HAVE_CTIME_R)
 #  error "HAVE_CTIME_R"
@@ -481,14 +487,15 @@ extern "C"
 #define os_send_kill() os_send_signal(SIGKILL)
 #endif
   typedef void (*SIGNAL_HANDLER_FUNCTION) (int sig_no);
-  extern SIGNAL_HANDLER_FUNCTION os_set_signal_handler (const int sig_no,
-							SIGNAL_HANDLER_FUNCTION
-							sig_handler);
+  extern SIGNAL_HANDLER_FUNCTION os_set_signal_handler (const int sig_no, SIGNAL_HANDLER_FUNCTION sig_handler);
   extern void os_send_signal (const int sig_no);
 
 #if defined (WINDOWS)
 #define atoll(a)	_atoi64((a))
+#if !defined(_MSC_VER) || _MSC_VER < 1800
+/* ref: https://msdn.microsoft.com/en-us/library/a206stx2.aspx */
 #define llabs(a)	_abs64((a))
+#endif				/* _MSC_VER && _MSC_VER < 1800 */
 #endif
 
 #if defined (AIX) && !defined (NAME_MAX)
@@ -506,11 +513,10 @@ extern "C"
 
 #if defined (WINDOWS)
   int setenv (const char *name, const char *value, int overwrite);
-  int cub_vsnprintf (char *buffer, size_t count, const char *format,
-		     va_list argptr);
+  int cub_vsnprintf (char *buffer, size_t count, const char *format, va_list argptr);
 #endif
 
-#if defined(WINDOWS) || defined(MAC_OS)
+#if defined (WINDOWS)
 /* The following structure is used to generate uniformly distributed
  * pseudo-random numbers reentrantly.
  */
@@ -518,9 +524,7 @@ extern "C"
   {
     unsigned short _rand48_seed[3];
   };
-#endif
 
-#if defined(WINDOWS)
 /* These functions are implemented in rand.c. And rand.c will be included
  * on Windows build.
  */
@@ -532,7 +536,10 @@ extern "C"
   extern int drand48_r (struct drand48_data *buffer, double *result);
   extern int rand_r (unsigned int *seedp);
 
+#if !defined(_MSC_VER) || _MSC_VER < 1800
+  /* Ref: https://msdn.microsoft.com/en-us/library/dn353646(v=vs.140).aspx */
   extern double round (double d);
+#endif				/* !_MSC_VER || _MSC_VER < 1800 */
 
   typedef struct
   {
@@ -542,14 +549,12 @@ extern "C"
   } pthread_mutex_t;
 
   typedef HANDLE pthread_mutexattr_t;
-#endif
-#if defined(WINDOWS) || defined(MAC_OS)
+
 /* Use a large prime as watermark */
 #define WATERMARK_MUTEX_INITIALIZED 0x96438AF7
 
 #define PTHREAD_MUTEX_INITIALIZER	{{ NULL, 0, 0, NULL, NULL, 0 }, NULL, 0}
-#endif
-#if defined(WINDOWS)
+
   typedef union
   {
     CONDITION_VARIABLE native_cond;
@@ -573,19 +578,26 @@ extern "C"
 
   typedef HANDLE pthread_condattr_t;
 
+#if !defined (ETIMEDOUT)
 #define ETIMEDOUT WAIT_TIMEOUT
+#endif
 #define PTHREAD_COND_INITIALIZER	{ NULL }
 
+#if defined(_MSC_VER) && _MSC_VER >= 1900 && !defined(_CRT_NO_TIME_T)
+#define _TIMESPEC_DEFINED
+#endif				/* _MSC_VER && _MSC_VER >= 1900 && !_CRT_NO_TIME_T */
+#if !defined(_TIMESPEC_DEFINED)
+#define _TIMESPEC_DEFINED
   struct timespec
   {
     int tv_sec;
     int tv_nsec;
   };
+#endif				/* !_TIMESPEC_DEFINED */
 
   extern pthread_mutex_t css_Internal_mutex_for_mutex_initialize;
 
-  int pthread_mutex_init (pthread_mutex_t * mutex,
-			  pthread_mutexattr_t * attr);
+  int pthread_mutex_init (pthread_mutex_t * mutex, pthread_mutexattr_t * attr);
   int pthread_mutex_destroy (pthread_mutex_t * mutex);
 
   void port_win_mutex_init_and_lock (pthread_mutex_t * mutex);
@@ -593,8 +605,7 @@ extern "C"
 
   __inline int pthread_mutex_lock (pthread_mutex_t * mutex)
   {
-    if (mutex->csp == &mutex->cs
-	&& mutex->watermark == WATERMARK_MUTEX_INITIALIZED)
+    if (mutex->csp == &mutex->cs && mutex->watermark == WATERMARK_MUTEX_INITIALIZED)
       {
 	EnterCriticalSection (mutex->csp);
       }
@@ -621,8 +632,7 @@ extern "C"
 
   __inline int pthread_mutex_trylock (pthread_mutex_t * mutex)
   {
-    if (mutex->csp == &mutex->cs
-	&& mutex->watermark == WATERMARK_MUTEX_INITIALIZED)
+    if (mutex->csp == &mutex->cs && mutex->watermark == WATERMARK_MUTEX_INITIALIZED)
       {
 	if (TryEnterCriticalSection (mutex->csp))
 	  {
@@ -649,11 +659,9 @@ extern "C"
   int pthread_mutexattr_settype (pthread_mutexattr_t * attr, int type);
   int pthread_mutexattr_destroy (pthread_mutexattr_t * attr);
 
-  int pthread_cond_init (pthread_cond_t * cond,
-			 const pthread_condattr_t * attr);
+  int pthread_cond_init (pthread_cond_t * cond, const pthread_condattr_t * attr);
   int pthread_cond_wait (pthread_cond_t * cond, pthread_mutex_t * mutex);
-  int pthread_cond_timedwait (pthread_cond_t * cond, pthread_mutex_t * mutex,
-			      struct timespec *ts);
+  int pthread_cond_timedwait (pthread_cond_t * cond, pthread_mutex_t * mutex, struct timespec *ts);
   int pthread_cond_destroy (pthread_cond_t * cond);
   int pthread_cond_signal (pthread_cond_t * cond);
   int pthread_cond_broadcast (pthread_cond_t * cond);
@@ -669,8 +677,7 @@ extern "C"
 #define THREAD_CALLING_CONVENTION __stdcall
 
   int pthread_create (pthread_t * thread, const pthread_attr_t * attr,
-		      THREAD_RET_T (THREAD_CALLING_CONVENTION *
-				    start_routine) (void *), void *arg);
+		      THREAD_RET_T (THREAD_CALLING_CONVENTION * start_routine) (void *), void *arg);
   void pthread_exit (void *ptr);
   pthread_t pthread_self (void);
   int pthread_join (pthread_t thread, void **value_ptr);
@@ -727,9 +734,9 @@ extern "C"
 #define ATOMIC_TAS_32(ptr, new_val) \
 	InterlockedExchange(ptr, new_val)
 #define ATOMIC_CAS_32(ptr, cmp_val, swap_val) \
-	(InterlockedCompareExchange(ptr, swap_val, cmp_val) == cmp_val)
+	(InterlockedCompareExchange(ptr, swap_val, cmp_val) == (cmp_val))
 #define ATOMIC_INC_32(ptr, amount) \
-	(InterlockedExchangeAdd(ptr, amount) + amount)
+	(InterlockedExchangeAdd(ptr, amount) + (amount))
 #define MEMORY_BARRIER() \
 	MemoryBarrier()
 
@@ -737,11 +744,17 @@ extern "C"
 #define ATOMIC_TAS_64(ptr, new_val) \
 	InterlockedExchange64(ptr, new_val)
 #define ATOMIC_CAS_64(ptr, cmp_val, swap_val) \
-	(InterlockedCompareExchange64(ptr, swap_val, cmp_val) == cmp_val)
+	(InterlockedCompareExchange64(ptr, swap_val, cmp_val) == (cmp_val))
 #define ATOMIC_INC_64(ptr, amount) \
-	(InterlockedExchangeAdd64(ptr, amount) + amount)
+	(InterlockedExchangeAdd64(ptr, amount) + (amount))
+
+#define ATOMIC_TAS_ADDR(ptr, new_val) ATOMIC_TAS_64 ((long long volatile *) ptr, (long long) new_val)
 #define ATOMIC_CAS_ADDR(ptr, cmp_val, swap_val) \
-	(InterlockedCompareExchange64((long long volatile *) ptr, (long long) swap_val, (long long) cmp_val) == (long long) cmp_val)
+	(InterlockedCompareExchange64((long long volatile *) ptr, (long long) swap_val, (long long) cmp_val) \
+         == (long long) cmp_val)
+
+#define ATOMIC_LOAD_64(ptr) (*(ptr))
+#define ATOMIC_STORE_64(ptr, val) (*(ptr) = val)
 #else				/* _WIN64 */
 /*
  * These functions are used on Windows 32bit OS.
@@ -750,19 +763,24 @@ extern "C"
  * We provide the following functions to support atomic operations on all
  * Windows versions.
  */
-  extern UINT64 win32_compare_exchange64 (UINT64 volatile *val_ptr,
-					  UINT64 swap_val, UINT64 cmp_val);
+  extern UINT64 win32_compare_exchange64 (UINT64 volatile *val_ptr, UINT64 swap_val, UINT64 cmp_val);
   extern UINT64 win32_exchange_add64 (UINT64 volatile *ptr, UINT64 amount);
   extern UINT64 win32_exchange64 (UINT64 volatile *ptr, UINT64 new_val);
 
 #define ATOMIC_TAS_64(ptr, new_val) \
 	win32_exchange64(ptr, new_val)
 #define ATOMIC_CAS_64(ptr, cmp_val, swap_val) \
-	(win32_compare_exchange64(ptr, swap_val, cmp_val) == cmp_val)
+	(win32_compare_exchange64(ptr, swap_val, cmp_val) == (cmp_val))
 #define ATOMIC_INC_64(ptr, amount) \
-	(win32_exchange_add64(ptr, amount) + amount)
+	(win32_exchange_add64(ptr, amount) + (amount))
+
+#define ATOMIC_TAS_ADDR(ptr, new_val) ATOMIC_TAS_32 ((long volatile *) ptr, (long long) new_val)
 #define ATOMIC_CAS_ADDR(ptr, cmp_val, swap_val) \
-	(InterlockedCompareExchange((long volatile *) ptr, (long long) swap_val, (long long) cmp_val) == (long long) cmp_val)
+	(InterlockedCompareExchange((long volatile *) ptr, (long long) swap_val, (long long) cmp_val) \
+         == (long long) (cmp_val))
+
+#define ATOMIC_LOAD_64(ptr) ATOMIC_INC_64 (ptr, 0)
+#define ATOMIC_STORE_64(ptr, val) ATOMIC_TAS_64 (ptr, val)
 #endif				/* _WIN64 */
 
 #else				/* WINDOWS */
@@ -785,8 +803,13 @@ extern "C"
 #define ATOMIC_INC_64(ptr, amount) \
 	__sync_add_and_fetch(ptr, amount)
 
+#define ATOMIC_TAS_ADDR(ptr, new_val) \
+        __sync_lock_test_and_set(ptr, new_val)
 #define ATOMIC_CAS_ADDR(ptr, cmp_val, swap_val) \
 	__sync_bool_compare_and_swap(ptr, cmp_val, swap_val)
+
+#define ATOMIC_LOAD_64(ptr) (*(ptr))
+#define ATOMIC_STORE_64(ptr, val) (*(ptr) = val)
 
 /* There is a gcc bug of __sync_synchronize in x86-64 when gcc version
  * less than 4.4. we can replace __sync_synchronize as mfence instruction.
@@ -822,12 +845,9 @@ extern double strtod_win (const char *str, char **end_ptr);
 #define string_to_double(str, end_ptr) strtod((str), (end_ptr))
 #endif
 
-extern INT64 timeval_diff_in_msec (const struct timeval *end_time,
-				   const struct timeval *start_time);
-extern int timeval_add_msec (struct timeval *added_time,
-			     const struct timeval *start_time, int msec);
-extern int timeval_to_timespec (struct timespec *to,
-				const struct timeval *from);
+extern INT64 timeval_diff_in_msec (const struct timeval *end_time, const struct timeval *start_time);
+extern int timeval_add_msec (struct timeval *added_time, const struct timeval *start_time, int msec);
+extern int timeval_to_timespec (struct timespec *to, const struct timeval *from);
 
 extern FILE *port_open_memstream (char **ptr, size_t * sizeloc);
 
@@ -838,14 +858,10 @@ extern char *trim (char *str);
 extern int parse_int (int *ret_p, const char *str_p, int base);
 extern int parse_bigint (INT64 * ret_p, const char *str_p, int base);
 
-extern int str_to_int32 (int *ret_p, char **end_p, const char *str_p,
-			 int base);
-extern int str_to_uint32 (unsigned int *ret_p, char **end_p,
-			  const char *str_p, int base);
-extern int str_to_int64 (INT64 * ret_p, char **end_p, const char *str_p,
-			 int base);
-extern int str_to_uint64 (UINT64 * ret_p, char **end_p, const char *str_p,
-			  int base);
+extern int str_to_int32 (int *ret_p, char **end_p, const char *str_p, int base);
+extern int str_to_uint32 (unsigned int *ret_p, char **end_p, const char *str_p, int base);
+extern int str_to_int64 (INT64 * ret_p, char **end_p, const char *str_p, int base);
+extern int str_to_uint64 (UINT64 * ret_p, char **end_p, const char *str_p, int base);
 extern int str_to_double (double *ret_p, char **end_p, const char *str_p);
 extern int str_to_float (float *ret_p, char **end_p, const char *str_p);
 

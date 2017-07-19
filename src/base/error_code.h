@@ -61,7 +61,7 @@
 #define ER_IO_RENAME_FAIL                            -16
 
 #define ER_PB_BAD_PAGEID                             -17
-#define ER_PB_ALL_BUFFERS_FIXED                      -18
+#define ER_PB_ALL_BUFFERS_FIXED                      -18	/* obsolete, I think */
 #define ER_PB_UNFIXED_PAGEPTR                        -19
 #define ER_PB_UNKNOWN_PAGEPTR                        -20
 
@@ -237,7 +237,7 @@
 
 #define ER_DATE_CONVERSION                          -176
 
-#define ER_ELO_CANT_CREATE_LARGE_OBJECT             -177
+#define ER_ELO_CANT_CREATE_LARGE_OBJECT             -177	/* obsolete */
 
 #define ER_MR_TEMP_OID_WITHOUT_MOP                  -178
 
@@ -509,7 +509,7 @@
 #define ER_IT_MULTIPLE_STATEMENT                    -435
 #define ER_IT_NOT_QUERY                             -436
 
-#define ER_LO_INVALID_LOID                          -437
+#define ER_LO_INVALID_LOID                          -437	/* Unused */
 #define ER_LO_DESCRIPTOR_CONFLICT                   -438
 #define ER_LO_OVER_OFFSET                           -439
 
@@ -761,8 +761,8 @@
 #define ER_IO_NOT_A_BACKUP_OF_GIVEN_DATABASE        -633
 #define ER_IO_BKUP_DATABASE_VOLUME_OR_FILE_EXPECTED -634
 
-#define ER_LOG_BUFFER_POOL_TOO_SMALL                -635
-#define ER_LOG_NBUFFERS_TOO_SMALL                   -636
+#define ER_LOG_BUFFER_POOL_TOO_SMALL                -635	/* Obsolete */
+#define ER_LOG_NBUFFERS_TOO_SMALL                   -636	/* Obsolete */
 #define ER_LOG_FREEING_TOO_MUCH                     -637
 #define ER_LOG_FLUSHING_UNUPDATABLE                 -638
 #define ER_LOG_WRONG_FORCE_DELAYED                  -639
@@ -773,7 +773,7 @@
 #define ER_LOG_FATAL_ERROR                          -644
 #define ER_LOG_BADSTATE_FOR_CLIENT_UNDO_OR_POSTPONE -645	/* Obsolete */
 #define ER_LOG_MISSING_COMPENSATING_RECORD          -646
-#define ER_LOG_BKUP_DOESNOT_CORRESPOND              -647
+#define ER_LOG_BKUP_DOESNOT_CORRESPOND              -647	/* Obsolete */
 #define ER_LOG_BKUP_INCOMPATIBLE                    -648
 
 #define ER_INVALID_PRECISION                        -649
@@ -1533,7 +1533,13 @@
 
 #define ER_PRECISION_OVERFLOW			    -1192
 #define ER_PARTITION_EXPRESSION_TOO_LONG            -1193
-#define ER_LAST_ERROR                               -1194
+
+#define ER_CANNOT_CHECK_FILE                        -1194
+
+#define ER_BUILDVALUE_IN_REC_CTE		    -1195
+#define ER_CTE_MAX_RECURSION_REACHED		    -1196
+
+#define ER_LAST_ERROR                               -1197
 
 /*
  * CAUTION!
