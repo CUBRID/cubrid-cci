@@ -122,8 +122,8 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\src\communication;..\..\src\compat;..\..\src\connection;..\..\src\demo;..\..\src\executables;..\..\src\jsp;..\..\src\ldb;..\..\src\object;..\..\src\optimizer;..\..\src\parser;..\..\src\qatools;..\..\src\query;..\..\src\storage;..\..\src\thread;..\..\src\transaction;..\..\src\winport;..\..\external\lzo-2.03\include\lzo;..\..\src\winport\pc\oradmn;..\..\pccts\h;..\..\win\external\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN;WINDOWS;WIN32;NDEBUG;_CRT_SECURE_NO_WARNINGS;_MT;_LIB;CCI_OLEDB;_USE_32BIT_TIME_T;CAS_CCI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\src\communication;..\compat;..\..\src\connection;..\..\src\demo;..\..\src\executables;..\..\src\jsp;..\..\src\ldb;..\..\src\object;..\..\src\optimizer;..\..\src\parser;..\..\src\qatools;..\..\src\query;..\..\src\storage;..\..\src\thread;..\..\src\transaction;..\..\src\winport;..\..\external\lzo-2.03\include\lzo;..\..\src\winport\pc\oradmn;..\..\pccts\h;..\..\win\external\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN;WINDOWS;WIN32;NDEBUG;_CRT_SECURE_NO_WARNINGS;_MT;_LIB;CCI_OLEDB;_USE_32BIT_TIME_T;CAS_CCI;_ALLOW_KEYWORD_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <WarningLevel>Level3</WarningLevel>
@@ -142,7 +142,7 @@
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\src\communication;..\..\src\compat;..\..\src\connection;..\..\src\demo;..\..\src\executables;..\..\src\jsp;..\..\src\ldb;..\..\src\object;..\..\src\optimizer;..\..\src\parser;..\..\src\qatools;..\..\src\query;..\..\src\storage;..\..\src\thread;..\..\src\transaction;..\..\src\winport;..\..\external\lzo-2.03\include\lzo;..\..\src\winport\pc\oradmn;..\..\pccts\h;..\..\win\external\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN;WINDOWS;_WIN64;NDEBUG;_CRT_SECURE_NO_WARNINGS;_MT;_LIB;CCI_OLEDB;CAS_CCI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN;WINDOWS;_WIN64;NDEBUG;_CRT_SECURE_NO_WARNINGS;_MT;_LIB;CCI_OLEDB;CAS_CCI;_ALLOW_KEYWORD_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <WarningLevel>Level3</WarningLevel>

@@ -44,12 +44,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <assert.h>
 #ifdef WINDOWS
 #include <winsock2.h>
 #include <windows.h>
 #endif
 #include <sys/types.h>
-#include <regex38a.h>
+#include "../external/libregex38a/include/regex38a.h"
 
 /************************************************************************
  * OTHER IMPORTED HEADER FILES						*
@@ -802,12 +803,12 @@ ut_date_tz_to_str (T_CCI_DATE_TZ * value, T_CCI_U_TYPE u_type, char *str, int si
   int len;
 
   if (u_type == CCI_U_TYPE_DATETIMETZ || u_type == CCI_U_TYPE_DATETIMELTZ || u_type == CCI_U_TYPE_TIMESTAMPTZ
-      || u_type == CCI_U_TYPE_TIMESTAMPLTZ || u_type == CCI_U_TYPE_TIMETZ)
+      || u_type == CCI_U_TYPE_TIMESTAMPLTZ)
     {
       int remain_size;
       ut_date_to_str ((T_CCI_DATE *) value, u_type, str, size);
 
-      len = strlen (str);
+      len = (int) strlen (str);
       remain_size = size - len;
       if (remain_size > 1)
 	{
@@ -1014,7 +1015,7 @@ cci_url_match (const char *src, char *token[])
       return CCI_ER_INVALID_URL;	/* pattern compilation error */
     }
 
-  len = strlen (src);
+  len = (int) strlen (src);
   error = cub_regexec (&regex, src, len, 100, match, 0);
   if (error == CUB_REG_NOMATCH)
     {
@@ -1046,7 +1047,7 @@ cci_url_match (const char *src, char *token[])
     {
       const char *t = src + match[match_idx[i]].rm_so;
       size_t n = match[match_idx[i]].rm_eo - match[match_idx[i]].rm_so;
-      token[i] = MALLOC (n + 1);
+      token[i] = (char *) MALLOC (n + 1);
       if (token[i] == NULL)
 	{
 	  error = CCI_ER_NO_MORE_MEMORY;	/* out of memory */
@@ -1091,7 +1092,7 @@ get_pm_offset (char *str, int hh)
       str++;
     }
 
-  len = strlen (str);
+  len = (int) strlen (str);
 
   if ((((len > 2) && (*(str + 2) == ' ')) || (len == 2))
       && ((((*str) == 'p') || ((*str) == 'P')) && ((*(str + 1) == 'm') || (*(str + 1) == 'M'))) && (hh < 12))
@@ -1113,7 +1114,7 @@ skip_ampm_chars (char *str)
       ampm_skipped_chars++;
     }
 
-  len = strlen (str);
+  len = (int) strlen (str);
   if ((len > 2 && (*(str + 2) == ' ')) || (len == 2))
     {
       if (((*str == 'a') || (*str == 'A') || (*str == 'p') || (*str == 'P'))

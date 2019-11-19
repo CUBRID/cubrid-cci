@@ -35,6 +35,11 @@
 
 #ident "$Id$"
 
+#if defined (WINDOWS)
+// suppress warning C4005: 'NO_ERROR': macro redefinition
+#include "winerror.h"
+#endif // MSVC
+
 #ifdef NO_ERROR
 #undef NO_ERROR
 #endif
@@ -660,7 +665,7 @@
 #define ER_LDR_INTERNAL_REFERENCE  		    -563
 #define ER_LDR_UNIQUE_VIOLATION			    -564
 #define ER_LDR_INVALID_CONSTRUCTOR 		    -565
-#define ER_LDB_NO_CLASS_OR_NO_ATTRIBUTE 	    -566
+#define ER_LDR_NO_CLASS_OR_NO_ATTRIBUTE 	    -566
 #define ER_LDR_UNEXPECTED_ARGUMENT		    -567
 #define ER_LDR_MISSING_ARGUMENT			    -568
 #define ER_LDR_MISSING_ATTRIBUTES		    -569
@@ -1539,7 +1544,67 @@
 #define ER_BUILDVALUE_IN_REC_CTE		    -1195
 #define ER_CTE_MAX_RECURSION_REACHED		    -1196
 
-#define ER_LAST_ERROR                               -1197
+#define ER_JSON_INVALID_JSON                        -1197
+#define ER_JSON_NO_JSON_OBJECT_PROVIDED             -1198
+#define ER_JSON_INVALIDATED_BY_SCHEMA               -1199
+#define ER_JSON_INVALID_PATH                        -1200
+#define ER_JSON_OBJECT_NAME_IS_NULL                 -1201
+#define ER_JSON_PATH_DOES_NOT_EXIST                 -1202
+#define ER_JSON_EXPECTED_OTHER_TYPE                 -1203
+#define ER_JSON_DUPLICATE_KEY                       -1204
+#define ER_JSON_EXPECTING_JSON_DOC                  -1205
+
+#define ER_JSON_PATH_IS_NOT_ARRAY_CELL              -1206
+#define ER_JSON_ARRAY_INDEX_TOO_LARGE               -1207
+#define ER_INVALID_ONE_ALL_ARGUMENT                 -1208
+#define ER_JSON_RESERVED_ERROR_4                    -1209
+#define ER_JSON_RESERVED_ERROR_5                    -1210
+#define ER_JSON_RESERVED_ERROR_6                    -1211
+#define ER_JSON_RESERVED_ERROR_7                    -1212
+#define ER_JSON_RESERVED_ERROR_8                    -1213
+#define ER_JSON_RESERVED_ERROR_9                    -1214
+
+#define ER_STREAM_NO_MORE_DATA                      -1215
+#define ER_STREAM_UNPACKING_INV_OBJ_ID              -1216
+#define ER_STREAM_RESERVED_2                        -1217
+#define ER_STREAM_RESERVED_3                        -1218
+#define ER_STREAM_RESERVED_4                        -1219
+#define ER_STREAM_RESERVED_5                        -1220
+#define ER_STREAM_RESERVED_6                        -1221
+#define ER_STREAM_RESERVED_7                        -1222
+#define ER_STREAM_RESERVED_8                        -1223
+#define ER_STREAM_RESERVED_9                        -1224
+#define ER_STREAM_RESERVED_10                       -1225
+#define ER_STREAM_RESERVED_11                       -1226
+#define ER_STREAM_RESERVED_12                       -1227
+#define ER_STREAM_RESERVED_13                       -1228
+#define ER_STREAM_RESERVED_14                       -1229
+#define ER_STREAM_RESERVED_15                       -1230
+#define ER_STREAM_RESERVED_16                       -1231
+#define ER_STREAM_RESERVED_17                       -1232
+#define ER_STREAM_RESERVED_18                       -1233
+#define ER_STREAM_RESERVED_19                       -1234
+#define ER_STREAM_RESERVED_20                       -1235
+
+#define ER_DWB_DISABLED                             -1236
+
+#define ER_SM_INDEX_STATUS_CHANGE_NOT_ALLOWED       -1237
+#define ER_JSON_TABLE_ON_EMPTY_ERROR                -1238
+#define ER_JSON_TABLE_ON_ERROR_INCOMP_DOMAIN        -1239
+#define ER_SM_ONLINE_INDEX_ON_HIERARCHY             -1240
+
+#define ER_QPROC_XASLNODE_RECOMPILE_REQUESTED       -1241
+
+#define ER_SM_NO_PARTITION_ON_HIERARCHIES           -1242
+
+#define ER_IB_ERROR_ABORT                           -1243
+
+#define ER_LDR_SHARED_NOT_SUPPORTED                 -1244
+#define ER_LDR_CLASS_NOT_SUPPORTED                  -1245
+
+#define ER_GAI_ERROR                                -1246
+
+#define ER_LAST_ERROR                               -1247
 
 /*
  * CAUTION!
@@ -1547,7 +1612,6 @@
  * When an entry is added here please ensure that the msg/<locale>/cubrid.msg
  * files are updated with matching error strings. See message_catalog.c for
  * details.
- * The error codes must also be added to compat/dbi_compat.h
  * ER_LAST_ERROR must also be updated.
  */
 
