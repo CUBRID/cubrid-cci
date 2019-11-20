@@ -252,17 +252,24 @@ struct stat
 extern int stat (const char *path, struct stat *buf);
 #endif
 
-extern int gettimeofday (struct timeval *tp, void *tzp);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-extern int lockf (int fd, int cmd, long size);
+	extern int gettimeofday(struct timeval *tp, void *tzp);
 
-extern char *cuserid (char *string);
+	extern int lockf (int fd, int cmd, long size);
 
-extern int getlogin_r (char *buf, size_t bufsize);
+	extern char *cuserid (char *string);
 
-extern struct tm *localtime_r (const time_t * time, struct tm *tm_val);
+	extern int getlogin_r (char *buf, size_t bufsize);
 
-extern char *ctime_r (const time_t * time, char *time_buf);
+	extern struct tm *localtime_r (const time_t * time, struct tm *tm_val);
+
+	extern char *ctime_r(const time_t * time, char *time_buf);
+#ifdef __cplusplus
+}
+#endif
 
 #if 0
 extern int umask (int mask);
@@ -525,8 +532,14 @@ void *aix_malloc (size_t size);
 #endif
 
 #if defined (WINDOWS)
+#ifdef __cplusplus
+extern "C" {
+#endif
 int setenv (const char *name, const char *value, int overwrite);
 int cub_vsnprintf (char *buffer, size_t count, const char *format, va_list argptr);
+#ifdef __cplusplus
+}
+#endif
 #endif
 
 #if defined (WINDOWS)
@@ -612,11 +625,16 @@ struct timespec
 
 extern pthread_mutex_t css_Internal_mutex_for_mutex_initialize;
 
-int pthread_mutex_init (pthread_mutex_t * mutex, pthread_mutexattr_t * attr);
-int pthread_mutex_destroy (pthread_mutex_t * mutex);
-
-void port_win_mutex_init_and_lock (pthread_mutex_t * mutex);
-int port_win_mutex_init_and_trylock (pthread_mutex_t * mutex);
+#ifdef __cplusplus
+extern "C" {
+#endif
+int pthread_mutex_init(pthread_mutex_t * mutex, pthread_mutexattr_t * attr);
+int pthread_mutex_destroy(pthread_mutex_t * mutex);
+void port_win_mutex_init_and_lock(pthread_mutex_t * mutex);
+int port_win_mutex_init_and_trylock(pthread_mutex_t * mutex);
+#ifdef __cplusplus
+}
+#endif
 
 __inline int
 pthread_mutex_lock (pthread_mutex_t * mutex)

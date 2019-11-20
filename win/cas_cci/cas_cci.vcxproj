@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -21,11 +21,12 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{20A88132-C7A9-4D49-B8D8-20D7D88BAE23}</ProjectGuid>
     <RootNamespace>cas_cci</RootNamespace>
+    <ProjectName>cas_cci</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
-    <PlatformToolset>v110</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
@@ -36,13 +37,13 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
-    <PlatformToolset>v110</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
-    <PlatformToolset>v110</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -87,7 +88,7 @@
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\src\communication;..\..\src\compat;..\..\src\connection;..\..\src\demo;..\..\src\executables;..\..\src\jsp;..\..\src\ldb;..\..\src\object;..\..\src\optimizer;..\..\src\parser;..\..\src\qatools;..\..\src\query;..\..\src\storage;..\..\src\thread;..\..\src\transaction;..\..\src\winport;..\..\external\lzo-2.03\include\lzo;..\..\src\winport\pc\oradmn;..\..\pccts\h;..\..\win\external\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN;WINDOWS;WIN32;_DEBUG;_CRT_SECURE_NO_WARNINGS;_MT;_LIB;CCI_OLEDB;_USE_32BIT_TIME_T;CAS_CCI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN;WINDOWS;WIN32;_DEBUG;_CRT_SECURE_NO_WARNINGS;_MT;_LIB;CCI_OLEDB;_USE_32BIT_TIME_T;CAS_CCI;_ALLOW_KEYWORD_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -106,7 +107,7 @@
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\src\communication;..\..\src\compat;..\..\src\connection;..\..\src\demo;..\..\src\executables;..\..\src\jsp;..\..\src\ldb;..\..\src\object;..\..\src\optimizer;..\..\src\parser;..\..\src\qatools;..\..\src\query;..\..\src\storage;..\..\src\thread;..\..\src\transaction;..\..\src\winport;..\..\external\lzo-2.03\include\lzo;..\..\src\winport\pc\oradmn;..\..\pccts\h;..\..\win\external\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN;WINDOWS;_WIN64;_DEBUG;_CRT_SECURE_NO_WARNINGS;_MT;_LIB;CCI_OLEDB;CAS_CCI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN;WINDOWS;_WIN64;_DEBUG;_CRT_SECURE_NO_WARNINGS;_MT;_LIB;CCI_OLEDB;CAS_CCI;_ALLOW_KEYWORD_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>

@@ -279,7 +279,14 @@ extern void hm_req_handle_close_all_resultsets (T_CON_HANDLE * con_handle);
 extern void hm_req_handle_close_all_unholdable_resultsets (T_CON_HANDLE * con_handle);
 extern int hm_con_handle_free (T_CON_HANDLE * connection);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 extern T_CCI_ERROR_CODE hm_get_connection_by_resolved_id (int resolved_id, T_CON_HANDLE ** connection);
+#ifdef __cplusplus
+}
+#endif
+
 extern T_CCI_ERROR_CODE hm_get_connection_force (int mapped_id, T_CON_HANDLE ** connection);
 extern T_CCI_ERROR_CODE hm_get_connection (int connection_id, T_CON_HANDLE ** connection);
 extern T_CCI_ERROR_CODE hm_get_statement (int statement_id, T_CON_HANDLE ** connection, T_REQ_HANDLE ** statement);
