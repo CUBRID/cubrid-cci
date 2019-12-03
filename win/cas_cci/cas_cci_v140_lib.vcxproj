@@ -92,7 +92,7 @@
     </BuildLog>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\win\external\include;..\..\win\compat</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\compat;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\win\external\include;..\..\win\compat</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN;WINDOWS;WIN32;_DEBUG;_CRT_SECURE_NO_WARNINGS;_MT;_LIB;CCI_OLEDB;_USE_32BIT_TIME_T;CAS_CCI;_ALLOW_KEYWORD_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -126,7 +126,7 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\win\external\include;..\..\win\compat</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\compat;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\win\external\include;..\..\win\compat</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN;WINDOWS;_WIN64;_DEBUG;_CRT_SECURE_NO_WARNINGS;_MT;_LIB;CCI_OLEDB;CAS_CCI;_ALLOW_KEYWORD_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -155,7 +155,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\win\external\include;..\..\win\compat</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\compat;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\win\external\include;..\..\win\compat</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN;WINDOWS;WIN32;NDEBUG;_CRT_SECURE_NO_WARNINGS;_MT;_LIB;CCI_OLEDB;_USE_32BIT_TIME_T;CAS_CCI;_ALLOW_KEYWORD_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -189,7 +189,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\win\external\include;..\..\win\compat</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\compat;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\win\external\include;..\..\win\compat</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN;WINDOWS;_WIN64;NDEBUG;_CRT_SECURE_NO_WARNINGS;_MT;_LIB;CCI_OLEDB;CAS_CCI;_ALLOW_KEYWORD_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
