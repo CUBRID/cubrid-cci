@@ -86,6 +86,7 @@ EXPORTS
 	cci_cancel
 	cci_get_error_msg
 	cci_get_err_msg
+	cci_get_version_string
 	
 	cci_set_charset
 	cci_row_count

@@ -42,6 +42,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <assert.h>
 
 #if defined(WINDOWS)
 #include <winsock2.h>
@@ -151,7 +152,7 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
   memset (client_info, 0, sizeof (client_info));
   memset (db_info, 0, sizeof (db_info));
 
-  strncpy (client_info, SRV_CON_CLIENT_MAGIC_STR, SRV_CON_CLIENT_MAGIC_LEN);
+  memcpy (client_info, SRV_CON_CLIENT_MAGIC_STR, SRV_CON_CLIENT_MAGIC_LEN);
   client_info[SRV_CON_MSG_IDX_CLIENT_TYPE] = cci_client_type;
   client_info[SRV_CON_MSG_IDX_PROTO_VERSION] = CAS_PROTO_PACK_CURRENT_NET_VER;
   client_info[SRV_CON_MSG_IDX_FUNCTION_FLAG] = BROKER_RENEWED_ERROR_CODE | BROKER_SUPPORT_HOLDABLE_RESULT;
@@ -176,11 +177,13 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
     }
   info += SRV_CON_DBPASSWD_SIZE;
 
-  strncpy (info, con_handle->url, SRV_CON_URL_SIZE - 1);
-  strncpy (ver_str, MAKE_STR (BUILD_NUMBER), SRV_CON_VER_STR_MAX_SIZE);
+  size_t url_len = strnlen (con_handle->url, SRV_CON_URL_SIZE - 1);
+  memcpy (info, con_handle->url, url_len);
+  info[url_len] = '\0';
 
-  ver_ptr = info + strlen (con_handle->url) + 1;
-  if (strlen (con_handle->url) + strlen (ver_str) + 3 <= SRV_CON_URL_SIZE)
+  strncpy (ver_str, MAKE_STR (BUILD_NUMBER), SRV_CON_VER_STR_MAX_SIZE);
+  ver_ptr = info + url_len + 1;
+  if (url_len + strlen (ver_str) + 3 <= SRV_CON_URL_SIZE)
     {
       ver_ptr[0] = (char) strlen (ver_str) + 1;
       memcpy (ver_ptr + 1, ver_str, strlen (ver_str) + 1);
@@ -206,7 +209,7 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
     {
       unsigned int v;
 
-      v = *(unsigned int *) con_handle->session_id.id;
+      memcpy (&v, con_handle->session_id.id, sizeof (v));
       snprintf (info, DRIVER_SESSION_SIZE, "%u", v);
     }
 
@@ -368,7 +371,14 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
   else
     {
       memcpy (con_handle->session_id.id, p, SESSION_ID_SIZE);
-      *(unsigned int *) con_handle->session_id.id = ntohl (*(unsigned int *) con_handle->session_id.id);
+
+      // convert first 4 bytes using ntohl
+      unsigned int net_val;
+      unsigned int conv_val;
+
+      memcpy (&net_val, con_handle->session_id.id, sizeof (net_val));
+      conv_val = ntohl (net_val);
+      memcpy (con_handle->session_id.id, &conv_val, sizeof (conv_val));
     }
 
   FREE_MEM (msg_buf);
@@ -797,7 +807,7 @@ net_peer_alive (unsigned char *ip_addr, int port, int timeout_msec)
     }
 
 send_again:
-  ret = WRITE_TO_SOCKET (sock_fd, ping_msg, strlen (ping_msg));
+  ret = WRITE_TO_SOCKET (sock_fd, ping_msg, (int) strlen (ping_msg));
   if (ret < 0)
     {
       if (errno == EAGAIN)
@@ -851,7 +861,7 @@ net_check_broker_alive (unsigned char *ip_addr, int port, int timeout_msec)
   memset (client_info, 0, sizeof (client_info));
   memset (db_info, 0, sizeof (db_info));
 
-  strncpy (client_info, SRV_CON_CLIENT_MAGIC_STR, SRV_CON_CLIENT_MAGIC_LEN);
+  memcpy (client_info, SRV_CON_CLIENT_MAGIC_STR, SRV_CON_CLIENT_MAGIC_LEN);
   client_info[SRV_CON_MSG_IDX_CLIENT_TYPE] = cci_client_type;
   client_info[SRV_CON_MSG_IDX_PROTO_VERSION] = CAS_PROTO_PACK_CURRENT_NET_VER;
   client_info[SRV_CON_MSG_IDX_FUNCTION_FLAG] = BROKER_RENEWED_ERROR_CODE;
@@ -862,10 +872,14 @@ net_check_broker_alive (unsigned char *ip_addr, int port, int timeout_msec)
 
   info = db_info;
 
-  strncpy (info, db_name, SRV_CON_DBNAME_SIZE - 1);
+  size_t db_name_len = strnlen (db_name, SRV_CON_DBNAME_SIZE - 1);
+  memcpy (info, db_name, db_name_len);
+  info[db_name_len] = '\0';
   info += (SRV_CON_DBNAME_SIZE + SRV_CON_DBUSER_SIZE + SRV_CON_DBPASSWD_SIZE);
 
-  strncpy (info, url, SRV_CON_URL_SIZE - 1);
+  size_t url_len = strnlen (url, SRV_CON_URL_SIZE - 1);
+  memcpy (info, url, url_len);
+  info[url_len] = '\0';
 
   if (connect_srv (ip_addr, port, 0, &sock_fd, timeout_msec) < 0)
     {
@@ -1201,9 +1215,11 @@ connect_srv (unsigned char *ip_addr, int port, char is_retry, SOCKET * ret_sock,
   struct timeval timeout_val;
   fd_set rset, wset, eset;
 #else
-  int error, len;
   int flags;
   struct pollfd po[1] = { {0, 0, 0} };
+#endif
+#if defined (AIX)
+  int error, len;
 #endif
 
   con_retry_count = (is_retry) ? 10 : 0;
@@ -1235,7 +1251,7 @@ connect_retry:
       return CCI_ER_CONNECT;
     }
 #else
-  flags = (sock_fd, F_GETFL);
+  flags = fcntl (sock_fd, F_GETFL);
   fcntl (sock_fd, F_SETFL, flags | O_NONBLOCK);
 #endif
 
