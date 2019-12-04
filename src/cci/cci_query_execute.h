@@ -164,14 +164,6 @@
 	  (TIME_VAL).ss = macro_var_ss;			                \
 	} while (0)
 
-#define NET_STR_TO_TIMETZ(TIME_VAL, PTR, TOTAL_SIZE)		        \
-	do {					                        \
-	  int tz_size;							\
-	  NET_STR_TO_TIME ((TIME_VAL), (PTR));				\
-	  tz_size = MIN (TOTAL_SIZE - NET_SIZE_TIME, CCI_TZ_SIZE);	\
-	  strncpy ((TIME_VAL).tz, (PTR) + NET_SIZE_TIME, tz_size);	\
-	} while (0)
-
 #define NET_STR_TO_MTIME(TIME_VAL, PTR)                                 \
         do {                                                            \
           short macro_var_hh, macro_var_mm, macro_var_ss, macro_var_ms; \
@@ -396,7 +388,7 @@
  ************************************************************************/
 
 extern int qe_con_close (T_CON_HANDLE * con_handle);
-extern int qe_prepare (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, char *sql_stmt, char flag,
+extern int qe_prepare (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, const char *sql_stmt, char flag,
 		       T_CCI_ERROR * err_buf, int reuse);
 extern int qe_prepare_and_execute (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, char *sql_stmt,
 				   int max_col_size, T_CCI_ERROR * err_buf);
@@ -483,7 +475,7 @@ extern void qe_param_info_free (T_CCI_PARAM_INFO * param);
 
 #if defined(WINDOWS)
 extern int qe_set_charset (T_CON_HANDLE * con_handle, char *str);
-extern int encode_string (char *str, int size, char **target, char *charset);
+extern int encode_string (const char *str, int size, char **target, char *charset);
 #endif
 
 #ifdef CCI_XA
