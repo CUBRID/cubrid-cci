@@ -965,7 +965,7 @@ mv confdefs.h-2 confdefs.h
 AC_DEFINE([PRODUCT_STRING], ["VERSION_STRING"], [official version string])
 
 AS_IF([test "$with_cci_only" = "yes"],
-	[BUILD_SUBDIRS="external include cci"
+	[BUILD_SUBDIRS="external cci"
 	EXTRA_DIST_SUBDIRS=""
 	CUBRID_LOGDIR=""
 	CUBRID_TMPDIR=""],
