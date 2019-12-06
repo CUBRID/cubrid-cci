@@ -55,6 +55,7 @@ AM_CONDITIONAL([BUILD_64], [test "$enable_64bit" = "yes"])
 OBJECT_MODE=""
 case $SYSTEM_TYPE in
 	*linux*) 
+		CC=g++
 		if test "$enable_64bit" = "yes"
 		then
 		  BIT_MODEL="-m64"
