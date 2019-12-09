@@ -661,7 +661,7 @@ AC_MSG_RESULT([$with_cmserver])
 
 AC_CONFIG_SUBDIRS([external/libregex38a])
 REGEX_LIBS="\$(top_builddir)/external/libregex38a/libregex38a.la"
-REGEX_INC="-I\$(top_builddir)/external/include/libregex38a"
+REGEX_INC="-I\$(top_builddir)/external/include"
 EXTERNAL_PKGS="$EXTERNAL_PKGS libregex38a"
 
 AC_MSG_CHECKING([for expat library])
@@ -970,7 +970,7 @@ AS_IF([test "$with_cci_only" = "yes"],
 	EXTRA_DIST_SUBDIRS=""
 	CUBRID_LOGDIR=""
 	CUBRID_TMPDIR=""],
-	[BUILD_SUBDIRS="external include cas sa cs cubrid util cci broker cm_common conf msg demo contrib locales tools timezones $OPTIONAL_DIR"
+	[BUILD_SUBDIRS="external cas sa cs cubrid util cci broker cm_common conf msg demo contrib locales tools timezones $OPTIONAL_DIR"
 	EXTRA_DIST_SUBDIRS="debian win src"])
 
 AC_SUBST([BUILD_NUMBER])
