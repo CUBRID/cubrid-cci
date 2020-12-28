@@ -1039,7 +1039,7 @@ external/lzo-2.03
 external/libgcrypt-1.5.2
 external/libgpg-error-1.11
 cubridmanager/server
-external/libregex38a
+external/openssl
 external/expat-2.0.1
 external/jansson-2.4'
 
@@ -24794,11 +24794,9 @@ fi
 { $as_echo "$as_me:$LINENO: result: $with_cmserver" >&5
 $as_echo "$with_cmserver" >&6; }
 
-subdirs="$subdirs external/libregex38a"
+subdirs="$subdirs external/openssl"
 
-REGEX_LIBS="\$(top_builddir)/external/libregex38a/libregex38a.la"
-REGEX_INC="-I\$(top_builddir)/external/include/libregex38a"
-EXTERNAL_PKGS="$EXTERNAL_PKGS libregex38a"
+OPENSSL_INC="-I\$(top_builddir)/external/openssl/include"
 
 { $as_echo "$as_me:$LINENO: checking for expat library" >&5
 $as_echo_n "checking for expat library... " >&6; }
@@ -24893,8 +24891,8 @@ CCI_LIB="\$(top_builddir)/cci/libcascci.la"
 ESQL_LIB="\$(top_builddir)/util/libcubridesql.la"
 BROKER_ADMIN_LIB="\$(top_builddir)/broker/libbrokeradmin.la"
 
-EXT_LIBS="$LIBEDIT_LIBS $LZO_LIBS $GC_LIBS $REGEX_LIBS $EXPAT_LIBS $JANSSON_LIBS $GCRYPT_LIBS $GPG_ERROR_LIBS"
-EXT_INC="$LIBEDIT_INC $LZO_INC $GC_INC $REGEX_INC $EXPAT_INC $JANSSON_INC $GCRYPT_INC $GPG_ERROR_INC"
+EXT_LIBS="$LIBEDIT_LIBS $LZO_LIBS $GC_LIBS $EXPAT_LIBS $JANSSON_LIBS $GCRYPT_LIBS $GPG_ERROR_LIBS"
+EXT_INC="$LIBEDIT_INC $LZO_INC $GC_INC $OPENSSL_INC $EXPAT_INC $JANSSON_INC $GCRYPT_INC $GPG_ERROR_INC"
 
 { $as_echo "$as_me:$LINENO: checking whether to use CUBRID environment variable" >&5
 $as_echo_n "checking whether to use CUBRID environment variable... " >&6; }

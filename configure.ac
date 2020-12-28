@@ -659,10 +659,8 @@ esac
 AM_CONDITIONAL([BUILD_CMSERVER], [test "$with_cmserver" != "no"])
 AC_MSG_RESULT([$with_cmserver])
 
-AC_CONFIG_SUBDIRS([external/libregex38a])
-REGEX_LIBS="\$(top_builddir)/external/libregex38a/libregex38a.la"
-REGEX_INC="-I\$(top_builddir)/external/include"
-EXTERNAL_PKGS="$EXTERNAL_PKGS libregex38a"
+AC_CONFIG_SUBDIRS([external/openssl])
+OPENSSL_INC="-I\$(top_builddir)/external/openssl/include"
 
 AC_MSG_CHECKING([for expat library])
 AC_ARG_WITH([expat],
@@ -729,8 +727,8 @@ CCI_LIB="\$(top_builddir)/cci/libcascci.la"
 ESQL_LIB="\$(top_builddir)/util/libcubridesql.la"
 BROKER_ADMIN_LIB="\$(top_builddir)/broker/libbrokeradmin.la"
 
-EXT_LIBS="$LIBEDIT_LIBS $LZO_LIBS $GC_LIBS $REGEX_LIBS $EXPAT_LIBS $JANSSON_LIBS $GCRYPT_LIBS $GPG_ERROR_LIBS"
-EXT_INC="$LIBEDIT_INC $LZO_INC $GC_INC $REGEX_INC $EXPAT_INC $JANSSON_INC $GCRYPT_INC $GPG_ERROR_INC"
+EXT_LIBS="$LIBEDIT_LIBS $LZO_LIBS $GC_LIBS $EXPAT_LIBS $JANSSON_LIBS $GCRYPT_LIBS $GPG_ERROR_LIBS"
+EXT_INC="$LIBEDIT_INC $LZO_INC $GC_INC $OPENSSL_INC $EXPAT_INC $JANSSON_INC $GCRYPT_INC $GPG_ERROR_INC"
 
 AC_MSG_CHECKING([whether to use CUBRID environment variable])
 AC_ARG_ENABLE([cubridenv],
