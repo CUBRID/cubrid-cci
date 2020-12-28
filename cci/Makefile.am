@@ -44,6 +44,7 @@ noinst_HEADERS = \
 	$(CCI_DIR)/cci_t_set.h \
 	$(CCI_DIR)/cci_util.h \
 	$(CCI_DIR)/cci_wsa_init.h \
+	$(CCI_DIR)/cci_ssl.h \
 	$(CCI_DIR)/cci_xa.h
 
 # extra dist for windows
@@ -56,10 +57,7 @@ EXTRA_DIST = \
 	$(WIN_DIR)/version.h \
 	$(WIN_DIR)/cas_cci/cas_cci.vcproj \
 	$(WIN_DIR)/cascci/cascci.def \
-	$(WIN_DIR)/cascci/cascci.vcproj \
-	$(WIN_DIR)/external/include/regex38a.h \
-	$(WIN_DIR)/external/lib/libregex38a.lib \
-	$(WIN_DIR)/external/lib64/libregex38a.lib
+	$(WIN_DIR)/cascci/cascci.vcproj 
 
 include_HEADERS = \
 	$(BROKER_DIR)/cas_error.h \
@@ -74,6 +72,7 @@ libcascci_la_SOURCES = \
 	$(CCI_DIR)/cci_net_buf.c \
 	$(CCI_DIR)/cci_network.c \
 	$(CCI_DIR)/cci_handle_mng.c \
+	$(CCI_DIR)/cci_ssl.c \
 	$(CCI_DIR)/cci_t_set.c \
 	$(CCI_DIR)/cci_t_lob.c \
 	$(CCI_DIR)/cci_common.c \
