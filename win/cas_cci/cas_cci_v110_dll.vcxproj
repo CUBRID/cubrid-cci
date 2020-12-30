@@ -93,7 +93,7 @@
     </BuildLog>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\compat;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\win\compat;..\..\win\external\openssl\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\compat;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\win\external\openssl\include</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN;WINDOWS;WIN32;_DEBUG;_CRT_SECURE_NO_WARNINGS;_MT;_LIB;CCI_OLEDB;_USE_32BIT_TIME_T;CAS_CCI;_ALLOW_KEYWORD_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -107,7 +107,7 @@
       <CompileAsManaged>false</CompileAsManaged>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>..\external\openssl\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\win\external\openssl\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>wsock32.lib;libssl.lib;libcrypto.lib;Crypt32.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>..\..\win\cascci\cascci.def</ModuleDefinitionFile>
     </Link>
@@ -158,7 +158,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\..\win;..\....\..\win;..\..\src\broker;..\..\src\compat;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\win\external\include;..\..\win\compat</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\compat;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\win\external\openssl\include</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN;WINDOWS;WIN32;NDEBUG;_CRT_SECURE_NO_WARNINGS;_MT;_LIB;CCI_OLEDB;_USE_32BIT_TIME_T;CAS_CCI;_ALLOW_KEYWORD_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -172,6 +172,11 @@
     <ProjectReference>
       <UseLibraryDependencyInputs>true</UseLibraryDependencyInputs>
     </ProjectReference>
+    <Link>
+      <AdditionalLibraryDirectories>..\..\win\external\openssl\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>wsock32.lib;libssl.lib;libcrypto.lib;Crypt32.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <ModuleDefinitionFile>..\..\win\cascci\cascci.def</ModuleDefinitionFile>
+    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <BuildLog>
@@ -183,7 +188,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\compat;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\win\compat;..\..\win\external\openssl\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\compat;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\win\external\openssl\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN;WINDOWS;_WIN64;NDEBUG;_CRT_SECURE_NO_WARNINGS;_MT;_LIB;CCI_OLEDB;CAS_CCI;_ALLOW_KEYWORD_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -195,9 +200,10 @@
       <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>wsock32.lib;libcrypto.lib;libssl.lib;Crypt32.lib;Ws2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\external\openssl\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>wsock32.lib;libssl.lib;libcrypto.lib;Crypt32.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\win\external\openssl\lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <MapExports>false</MapExports>
+      <ModuleDefinitionFile>..\..\win\cascci\cascci.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
