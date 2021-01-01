@@ -107,7 +107,7 @@
       <CompileAsManaged>false</CompileAsManaged>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>..\..\win\external\openssl\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\win\external\openssl\lib_v110;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>wsock32.lib;libssl.lib;libcrypto.lib;Crypt32.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>..\..\win\cascci\cascci.def</ModuleDefinitionFile>
     </Link>
@@ -143,7 +143,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>wsock32.lib;libssl.lib;libcrypto.lib;Crypt32.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\win\external\openssl\lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\win\external\openssl\lib64_v110;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <MapExports>true</MapExports>
       <ModuleDefinitionFile>..\..\win\cascci\cascci.def</ModuleDefinitionFile>
     </Link>
@@ -173,7 +173,7 @@
       <UseLibraryDependencyInputs>true</UseLibraryDependencyInputs>
     </ProjectReference>
     <Link>
-      <AdditionalLibraryDirectories>..\..\win\external\openssl\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\win\external\openssl\lib_v110;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>wsock32.lib;libssl.lib;libcrypto.lib;Crypt32.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>..\..\win\cascci\cascci.def</ModuleDefinitionFile>
     </Link>
@@ -201,7 +201,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>wsock32.lib;libssl.lib;libcrypto.lib;Crypt32.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\win\external\openssl\lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\win\external\openssl\lib64_v110;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <MapExports>false</MapExports>
       <ModuleDefinitionFile>..\..\win\cascci\cascci.def</ModuleDefinitionFile>
     </Link>
