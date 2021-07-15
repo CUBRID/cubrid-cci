@@ -18,7 +18,7 @@
 
 
 /*
- * error_code.h - Error codes
+ * base_error_code.h - Error codes
  *
  * CAUTION!
  *
@@ -27,10 +27,13 @@
  * details.
  * The error codes must also be added to compat/dbi_compat.h
  * ER_LAST_ERROR must also be updated.
+ * In case of common,  
+ * engine source (src/base/error_code.h) must be updated,
+ * becuase CCI source and Engine source have been separated.
  */
 
-#ifndef _ERROR_CODE_H_
-#define _ERROR_CODE_H_
+#ifndef _BASE_ERROR_CODE_H_
+#define _BASE_ERROR_CODE_H_
 
 #ident "$Id$"
 
@@ -1631,6 +1634,9 @@
  * files are updated with matching error strings. See message_catalog.c for
  * details.
  * ER_LAST_ERROR must also be updated.
+ * In case of common,  
+ * engine source (src/base/error_code.h) must be updated,
+ * becuase CCI source and Engine source have been separated.
  */
 
-#endif /* _ERROR_CODE_H_ */
+#endif /* _BASE_ERROR_CODE_H_ */

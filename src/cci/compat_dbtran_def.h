@@ -20,8 +20,18 @@
  * Transaction isolation definitions
  */
 
-#ifndef _DBTRAN_DEF_H_
-#define _DBTRAN_DEF_H_
+/*
+ * compat_dbtran_def.h -
+ *
+ * CAUTION!
+ *
+ * In case of common,
+ * engine source (src/compat/dbtran_def.h) must be updated,
+ * becuase CCI source and Engine source have been separated.
+ */
+
+#ifndef _COMPAT_DBTRAN_DEF_H_
+#define _COMPAT_DBTRAN_DEF_H_
 
 typedef enum
 {
@@ -60,4 +70,12 @@ typedef enum
 #define TRAN_ASYNC_WS_BIT                        0x10	/* 1 0000 */
 #define TRAN_ISO_LVL_BITS                        0x0F	/* 0 1111 */
 
-#endif // _DBTRAN_DEF_H_
+/*
+ * CAUTION!
+ *
+ * In case of common,
+ * engine source (src/compat/dbtran_def.h) must be updated,
+ * becuase CCI source and Engine source have been separated.
+ */
+
+#endif // _COMPAT_DBTRAN_DEF_H_

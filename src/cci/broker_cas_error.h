@@ -30,11 +30,17 @@
  */
 
 /*
- * cas_error.h -
+ * broker_cas_error.h -
+ *
+ * CAUTION!
+ *
+ * In case of common,  
+ * engine source (src/broker/cas_error.h) must be updated,
+ * becuase CCI source and Engine source have been separated.
  */
 
-#ifndef	_CAS_ERROR_H_
-#define	_CAS_ERROR_H_
+#ifndef	_BROKER_CAS_ERROR_H_
+#define	_BROKER_CAS_ERROR_H_
 
 #ident "$Id$"
 
@@ -86,4 +92,12 @@ extern "C"
 }
 #endif
 
-#endif				/* _CAS_ERROR_H_ */
+/*
+ * CAUTION!
+ *
+ * In case of common,  
+ * engine source (src/broker/cas_error.h) must be updated,
+ * becuase CCI source and Engine source have been separated.
+ */
+
+#endif				/* _BROKER_CAS_ERROR_H_ */

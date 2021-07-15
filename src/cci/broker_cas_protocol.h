@@ -18,11 +18,17 @@
 
 
 /*
- * cas_protocol.h -
+ * broker_cas_protocol.h -
+ *
+ * CAUTION!
+ *
+ * In case of common,  
+ * engine source (src/broker/cas_protocol.h) must be updated,
+ * becuase CCI source and Engine source have been separated.
  */
 
-#ifndef _CAS_PROTOCOL_H_
-#define _CAS_PROTOCOL_H_
+#ifndef _BROKER_CAS_PROTOCOL_H_
+#define _BROKER_CAS_PROTOCOL_H_
 
 #ifdef __cplusplus
 extern "C"
@@ -37,19 +43,12 @@ extern "C"
 #define SRV_CON_CLIENT_MAGIC_STR_SSL    "CUBRS"
 #define SRV_CON_MSG_IDX_CLIENT_TYPE	5
 
-#define IS_SSL_CLIENT(driver_info) \
-        (strncmp (driver_info, SRV_CON_CLIENT_MAGIC_STR_SSL, SRV_CON_CLIENT_MAGIC_LEN) == 0)
-
 /* 8th and 9th-byte (index 7 and 8) are reserved for backward compatibility.
  * 8.4.0 patch 1 or earlier versions hold minor and patch version on them.
  */
 #define SRV_CON_MSG_IDX_PROTO_VERSION   6
 #define SRV_CON_MSG_IDX_FUNCTION_FLAG   7
 #define SRV_CON_MSG_IDX_RESERVED2       8
-/* For backward compatibility */
-#define SRV_CON_MSG_IDX_MAJOR_VER	(SRV_CON_MSG_IDX_PROTO_VERSION)
-#define SRV_CON_MSG_IDX_MINOR_VER	(SRV_CON_MSG_IDX_FUNCTION_FLAG)
-#define SRV_CON_MSG_IDX_PATCH_VER	(SRV_CON_MSG_IDX_RESERVED2)
 
 #define SRV_CON_DBNAME_SIZE		32
 #define SRV_CON_DBUSER_SIZE		32
@@ -61,11 +60,6 @@ extern "C"
 #define SRV_CON_DB_INFO_SIZE \
         (SRV_CON_DBNAME_SIZE + SRV_CON_DBUSER_SIZE + SRV_CON_DBPASSWD_SIZE + \
          SRV_CON_URL_SIZE + SRV_CON_DBSESS_ID_SIZE)
-#define SRV_CON_DB_INFO_SIZE_PRIOR_8_4_0 \
-        (SRV_CON_DBNAME_SIZE + SRV_CON_DBUSER_SIZE + SRV_CON_DBPASSWD_SIZE + \
-         SRV_CON_URL_SIZE)
-#define SRV_CON_DB_INFO_SIZE_PRIOR_8_2_0 \
-        (SRV_CON_DBNAME_SIZE + SRV_CON_DBUSER_SIZE + SRV_CON_DBPASSWD_SIZE)
 
   typedef enum
   {
@@ -133,21 +127,10 @@ extern "C"
 #define CAS_CONNECTION_REPLY_SIZE_V4               (CAS_PID_SIZE + CAS_PID_SIZE + BROKER_INFO_SIZE + DRIVER_SESSION_SIZE)
 #define CAS_CONNECTION_REPLY_SIZE               CAS_CONNECTION_REPLY_SIZE_V4
 
-#define CAS_KEEP_CONNECTION_ON                  1
-
 #define CAS_GET_QUERY_INFO_PLAN			1
 
 #define CAS_STATEMENT_POOLING_OFF		0
 #define CAS_STATEMENT_POOLING_ON		1
-
-#define CCI_PCONNECT_OFF                        0
-#define CCI_PCONNECT_ON                         1
-
-#define CAS_REQ_HEADER_JDBC	"JDBC"
-#define CAS_REQ_HEADER_ODBC	"ODBC"
-#define CAS_REQ_HEADER_PHP	"PHP"
-#define CAS_REQ_HEADER_OLEDB	"OLEDB"
-#define CAS_REQ_HEADER_CCI	"CCI"
 
 #define SHARD_ID_INVALID 		(-1)
 #define SHARD_ID_UNSUPPORTED	(-2)
@@ -242,20 +225,6 @@ extern "C"
   };
   typedef enum t_broker_info_pos T_BROKER_INFO_POS;
 
-  enum t_driver_info_pos
-  {
-    DRIVER_INFO_MAGIC1 = 0,
-    DRIVER_INFO_MAGIC2,
-    DRIVER_INFO_MAGIC3,
-    DRIVER_INFO_MAGIC4,
-    DRIVER_INFO_MAGIC5,
-    DRIVER_INFO_CLIENT_TYPE,
-    DRIVER_INFO_PROTOCOL_VERSION,
-    DRIVER_INFO_FUNCTION_FLAG,
-    DRIVER_INFO_RESERVED,
-  };
-  typedef enum t_driver_info_pos T_DRIVER_INFO_POS;
-
   enum t_dbms_type
   {
     CAS_DBMS_CUBRID = 1,
@@ -271,23 +240,12 @@ extern "C"
 	|| (type) == CAS_PROXY_DBMS_MYSQL \
 	|| (type) == CAS_PROXY_DBMS_ORACLE)
 
-#define IS_VALID_CAS_FC(fc) \
-	(fc >= CAS_FC_END_TRAN && fc < CAS_FC_MAX)
-
-/* Current protocol version */
-#define CAS_PROTOCOL_VERSION    ((unsigned char)(CURRENT_PROTOCOL))
-
 /* Indicates version variable holds CAS protocol version. */
 #define CAS_PROTO_INDICATOR     (0x40)
 
 /* Make a version to be used in CAS. */
 #define CAS_PROTO_MAKE_VER(VER)         \
         ((T_BROKER_VERSION) (CAS_PROTO_INDICATOR << 24 | (VER)))
-#define CAS_PROTO_CURRENT_VER           \
-        ((T_BROKER_VERSION) CAS_PROTO_MAKE_VER(CURRENT_PROTOCOL))
-
-#define DOES_CLIENT_MATCH_THE_PROTOCOL(CLIENT, MATCH) ((CLIENT) == CAS_PROTO_MAKE_VER((MATCH)))
-#define DOES_CLIENT_UNDERSTAND_THE_PROTOCOL(CLIENT, REQUIRE) ((CLIENT) >= CAS_PROTO_MAKE_VER((REQUIRE)))
 
 /* Pack/unpack CAS protocol version to/from network. */
 #define CAS_PROTO_VER_MASK      (0x3F)
@@ -304,60 +262,20 @@ extern "C"
 #define CAS_MAKE_VER(MAJOR, MINOR, PATCH)       \
 	((T_BROKER_VERSION) (((MAJOR) << 16) | ((MINOR) << 8) | (PATCH)))
 
-#define CAS_MAKE_PROTO_VER(DRIVER_INFO) \
-    (((DRIVER_INFO)[SRV_CON_MSG_IDX_PROTO_VERSION]) & CAS_PROTO_INDICATOR) ? \
-        CAS_PROTO_UNPACK_NET_VER ((DRIVER_INFO)[SRV_CON_MSG_IDX_PROTO_VERSION]) : \
-        CAS_MAKE_VER ((DRIVER_INFO)[SRV_CON_MSG_IDX_MAJOR_VER], \
-                      (DRIVER_INFO)[SRV_CON_MSG_IDX_MINOR_VER], \
-                      (DRIVER_INFO)[SRV_CON_MSG_IDX_PATCH_VER])
-
 #define CAS_TYPE_FIRST_BYTE_PROTOCOL_MASK 0x80
 
-/* For backward compatibility */
-#define CAS_VER_TO_MAJOR(VER)    ((int) (((VER) >> 16) & 0xFF))
-#define CAS_VER_TO_MINOR(VER)    ((int) (((VER) >> 8) & 0xFF))
-#define CAS_VER_TO_PATCH(VER)    ((int) ((VER) & 0xFF))
-#define CAS_PROTO_TO_VER_STR(MSG_P, VER)			\
-	do {							\
-            switch (VER)					\
-              {							\
-            case PROTOCOL_V1:					\
-                *((char **) (MSG_P)) = (char *) "8.4.1";	\
-                break;						\
-            case PROTOCOL_V2:					\
-                *((char **) (MSG_P)) = (char *) "9.0.0";	\
-                break;						\
-            case PROTOCOL_V3:					\
-                *((char **) (MSG_P)) = (char *) "8.4.3";	\
-                break;						\
-            case PROTOCOL_V4:					\
-                *((char **) (MSG_P)) = (char *) "9.1.0";	\
-                break;						\
-            default:						\
-                *((char **) (MSG_P)) = (char *) "";		\
-                break;						\
-              }							\
-	} while (0)
+typedef int T_BROKER_VERSION;
 
-  typedef int T_BROKER_VERSION;
-
-  extern const char *cas_bi_get_broker_info (void);
-  extern char cas_bi_get_dbms_type (void);
-  extern void cas_bi_set_dbms_type (const char dbms_type);
-  extern void cas_bi_set_keep_connection (const char keep_connection);
-  extern char cas_bi_get_keep_connection (void);
-  extern void cas_bi_set_statement_pooling (const char statement_pooling);
-  extern char cas_bi_get_statement_pooling (void);
-  extern void cas_bi_set_cci_pconnect (const char cci_pconnect);
-  extern char cas_bi_get_cci_pconnect (void);
-  extern void cas_bi_set_protocol_version (const char protocol_version);
-  extern char cas_bi_get_protocol_version (void);
-  extern void cas_bi_set_renewed_error_code (const bool renewed_error_code);
-  extern bool cas_bi_get_renewed_error_code (void);
-  extern bool cas_di_understand_renewed_error_code (const char *driver_info);
-  extern void cas_bi_make_broker_info (char *broker_info, char dbms_type, char statement_pooling, char cci_pconnect);
 #ifdef __cplusplus
 }
 #endif
 
-#endif				/* _CAS_PROTOCOL_H_ */
+ /*
+ * CAUTION!
+ *
+ * In case of common,  
+ * engine source (src/broker/cas_protocol.h) must be updated,
+ * becuase CCI source and Engine source have been separated.
+ */
+
+#endif				/* _BROKER_CAS_PROTOCOL_H_ */

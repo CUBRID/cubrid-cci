@@ -90,9 +90,11 @@ typedef bool _Bool;
 #define bool char
 #endif
 #endif
+#ifndef __cplusplus /* TODO C4005 Macro redefinition for VS2012 lower*/
 #define false 0
 #define true 1
 #define __bool_true_false_are_defined 1
+#endif
 #endif
 
 /* need more consideration for the system which is not LP64 model */
