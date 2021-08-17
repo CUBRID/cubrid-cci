@@ -160,10 +160,12 @@ if(NOT WITH_CCI)
     endif(FOR_OTHER_DRIVER)
     set_target_properties(cascci_static PROPERTIES LINK_FLAGS_RELEASE "/NODEFAULTLIB:libcmt.lib" LINK_FLAGS_DEBUG "/NODEFAULTLIB:msvcrt.lib")
     target_link_libraries(cascci_static LINK_PRIVATE ws2_32)
-  else(WIN32) 
-    add_dependencies(cascci_static ${EP_TARGETS})
   endif(WIN32)
   
+  if(NOT ${EP_TARGETS} STREQUAL "")
+    add_dependencies(cascci_static ${EP_TARGETS})
+  endif(NOT ${EP_TARGETS} STREQUAL "")
+
   install(TARGETS cascci_static
     LIBRARY DESTINATION ${CUBRID_STATIC_LIBDIR} COMPONENT STATIC_CCI
     ARCHIVE DESTINATION ${CUBRID_STATIC_LIBDIR} COMPONENT STATIC_CCI
@@ -184,9 +186,9 @@ if(WIN32)
   target_link_libraries(cascci LINK_PRIVATE ws2_32)
 endif(WIN32)
 
-if(WITH_CCI)
-add_dependencies(cascci ${EP_TARGETS})
-endif(WITH_CCI)
+if(NOT ${EP_TARGETS} STREQUAL "")
+  add_dependencies(cascci ${EP_TARGETS})
+endif(NOT ${EP_TARGETS} STREQUAL "")
 
 install(TARGETS cascci
   RUNTIME DESTINATION ${CUBRID_CCIDIR}/bin COMPONENT CCI
