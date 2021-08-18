@@ -126,9 +126,9 @@ function build_initialize ()
   elif [ -d $source_dir/.git ]; then
     serial_number=$(cd $source_dir && git rev-list --after $major_start_date --count HEAD $git_count_list | awk '{ printf "%04d", $1 }' 2> /dev/null)
     [ $? -ne 0 ] && serial_number=$(cd $source_dir && git log --after $major_start_date --oneline | wc -l)
-    #hash_tag=$(cd $source_dir && git rev-parse --short=7 HEAD)
-    #extra_version="$serial_number-$hash_tag"
-    extra_version=$serial_number
+    hash_tag=$(cd $source_dir && git rev-parse --short=7 HEAD)
+    extra_version="$serial_number-$hash_tag"
+    #extra_version=$serial_number
   else
     extra_version=0000
     serial_number=0000
