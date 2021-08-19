@@ -34,7 +34,7 @@ Below You will see the brief list of sections to guide You to easily get started
   help)
   win\build.bat /h
   ```
-  - IMPORTANT: Add <git-installation-directory>/usr/bin to %PATH% environment variable
+  - IMPORTANT: Add (git-installation-directory)/usr/bin to %PATH% environment variable
     
 * Linux
 

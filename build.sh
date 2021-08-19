@@ -310,17 +310,15 @@ function show_usage ()
   echo ""
   echo " OPTIONS"
   echo "  -m      Set build mode(release, debug); [default: release]"
-  echo "          [default: all]"
   echo "  -? | -h Show this help message and exit"
   echo ""
   echo " TARGET"
-  echo "  all     Build and create packages "
+  echo "  all     Clean and Build and create packages "
   echo "  build   Build only (default)"
-  echo "  dist    Create packages only"
   echo ""
   echo " EXAMPLES"
-  echo "  $0                         # Build and pack all packages (64/release)"
-  echo "  $0 -m debug dist     # Create 64bit debug mode packages"
+  echo "  $0                  # Build and pack all packages (64/release)"
+  echo "  $0 -m debug all     # Create 64bit debug mode packages"
   echo ""
 }
 
@@ -406,6 +404,12 @@ function build_build ()
 	build_args="clean build"
 	;;
     esac
+  elif [ "$build_args" = "build" -o "build_args" = "BUILD" ]; then
+  	build_args="build"
+  else
+        echo "Unknown TARGET"
+	show_usage;
+	exit 1
   fi
 
   for i in $build_args; do
