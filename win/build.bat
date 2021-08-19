@@ -258,8 +258,8 @@ GOTO :EOF
 @echo.Build and package script for CUBRID CCI (with tools - cci_applier)
 @echo. OPTIONS
 @echo.  /32      or /64    Build 32bit or 64bit applications (default: 64)
-@echo.  /Release or /Debug Build with release or debug mode (default: %BUILD_MODE%)
-@echo.  /vs2017            Build with VS2017 (default: %BUILD_GENERATOR%)
+@echo.  /Release or /Debug Build with release or debug mode (default: Release)
+@echo.  /vs2017            Build with VS2017 (default: VS2017)
 @echo.  /vs2015 or /vs2012 Build with VS2015/2012
 @echo.  /help /h /?        Display this help message and exit
 @echo.
