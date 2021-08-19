@@ -24,8 +24,9 @@ rem
 rem Requirements
 rem - cmake
 rem - default VS2017 (for windows)
-rem - optional VS2015, VS2012
+rem - optional VS2015, VS2012 (for windows)
 rem - Windows 2003 or later
+rem - git 1.7.6 or later
 
 if NOT "%OS%"=="Windows_NT" echo "ERROR: Not supported OS" & GOTO :EOF
 
@@ -46,6 +47,7 @@ set CMAKE_PATH=C:\Program Files\CMake\bin\cmake.exe
 set CPACK_PATH=C:\Program Files\CMake\bin\cpack.exe
 set GIT_PATH=C:\Program Files\Git\bin\git.exe
 set CCI_VERSION_START_DATE=2021-07-14
+set OPTION_CHECK=false
 
 rem default list is all
 set BUILD_LIST=build
@@ -61,20 +63,19 @@ if NOT "%DIST_PKGS%." == "." set DIST_PKGS=
 :CHECK_OPTION
 if "%~1." == "."       GOTO :BUILD
 set BUILD_OPTION=%1
-set CHECK_OPTION=false
-if "%~1" == "/32"         set BUILD_TARGET=Win32& set CHECK_OPTION=true
-if "%~1" == "/64"         set BUILD_TARGET=x64& set CHECK_OPTION=true
-if /I "%~1" == "/debug"   set "BUILD_MODE=Debug"& set BUILD_TYPE=Debug& set CHECK_OPTION=true
-if /I "%~1" == "/release" set "BUILD_MODE=Release"& set BUILD_TYPE=RelWithDebInfo& set CHECK_OPTION=true
-if /I "%~1" == "/vs2017"  set BUILD_GENERATOR="Visual Studio 15 2017"& set BUILD_GEN_VERSION=V141& set CHECK_OPTION=true
-if /I "%~1" == "/vs2015"  set BUILD_GENERATOR="Visual Studio 14 2015"& set BUILD_GEN_VERSION=V140& set CHECK_OPTION=true
-if /I "%~1" == "/vs2012"  set BUILD_GENERATOR="Visual Studio 11 2012"& set BUILD_GEN_VERSION=V110& set CHECK_OPTION=true
+if "%~1" == "/32"         set BUILD_TARGET=Win32& set OPTION_CHECK=true
+if "%~1" == "/64"         set BUILD_TARGET=x64& set OPTION_CHECK=true
+if /I "%~1" == "/debug"   set "BUILD_MODE=Debug"& set BUILD_TYPE=Debug& set OPTION_CHECK=true
+if /I "%~1" == "/release" set "BUILD_MODE=Release"& set BUILD_TYPE=RelWithDebInfo& set OPTION_CHECK=true
+if /I "%~1" == "/vs2017"  set BUILD_GENERATOR="Visual Studio 15 2017"& set BUILD_GEN_VERSION=V141& set OPTION_CHECK=true
+if /I "%~1" == "/vs2015"  set BUILD_GENERATOR="Visual Studio 14 2015"& set BUILD_GEN_VERSION=V140& set OPTION_CHECK=true
+if /I "%~1" == "/vs2012"  set BUILD_GENERATOR="Visual Studio 11 2012"& set BUILD_GEN_VERSION=V110& set OPTION_CHECK=true
 if "%~1" == "/h"          GOTO :SHOW_USAGE
 if "%~1" == "/?"          GOTO :SHOW_USAGE
 if "%~1" == "/help"       GOTO :SHOW_USAGE
 if NOT "%BUILD_OPTION:~0,1%" == "/" (
   set BUILD_ARGS=%BUILD_ARGS% %1
-) else if %CHECK_OPTION%==false (
+) else if %OPTION_CHECK%==false (
   echo not found option [%BUILD_OPTION%]
   GOTO :SHOW_USAGE
 )
@@ -90,9 +91,8 @@ if NOT "%_TMP_LIST%" == "%BUILD_LIST%" set BUILD_LIST=ALL
 
 for /f "tokens=* delims= " %%a IN ("%BUILD_LIST%") DO set BUILD_LIST=%%a
 echo Build list is [%BUILD_LIST%].
-set BUILD_LIST=%BUILD_LIST:ALL=BUILD DIST%
+set BUILD_LIST=%BUILD_LIST:ALL=BUILD CCI_PACKAGE%
 set BUILD_LIST=%BUILD_LIST:BUILD=CUBRID%
-set BUILD_LIST=%BUILD_LIST:DIST=CCI_PACKAGE%
 
 for %%i IN (%BUILD_LIST%) DO (
   echo.
@@ -167,11 +167,14 @@ set BUILD_NUMBER=%MAJOR_VERSION%.%MINOR_VERSION%.%PATCH_VERSION%.%EXTRA_VERSION%
 
 if "%BUILD_TARGET%" == "Win32" (set CUBRID_CCI_PACKAGE_NAME=CUBRID-CCI-Windows-x86-%VERSION%) ELSE set CUBRID_CCI_PACKAGE_NAME=CUBRID-CCI-Windows-x64-%VERSION%
 
-set BUILD_DIR=%SOURCE_DIR%\build_%BUILD_MODE%_%BUILD_TARGET%_%BUILD_GEN_VERSION%
+set BUILD_ROOT_DIR=%SOURCE_DIR%\Build_Win
+set BUILD_DIR=%BUILD_ROOT_DIR%\build_%BUILD_MODE%_%BUILD_TARGET%_%BUILD_GEN_VERSION%
+if NOT EXIST "%BUILD_ROOT_DIR%" md %BUILD_ROOT_DIR%
 if NOT EXIST "%BUILD_DIR%" md %BUILD_DIR%
 
 rem TODO move build_prefix
-set BUILD_PREFIX=%SOURCE_DIR%\win\output\CUBRID_%BUILD_MODE%_%BUILD_TARGET%_%BUILD_GEN_VERSION%
+set BUILD_ROOT_PREFIX=%SOURCE_DIR%\win\output
+set BUILD_PREFIX=%BUILD_ROOT_PREFIX%\CUBRID_%BUILD_MODE%_%BUILD_TARGET%_%BUILD_GEN_VERSION%
 echo Build install directory is [%BUILD_PREFIX%].
 
 if "%DIST_DIR%." == "." set DIST_DIR=%BUILD_DIR%\output
@@ -234,11 +237,19 @@ GOTO :EOF
 
 
 :BUILD_CLEAN
+if "%OPTION_CHECK%" == "false" (
+del /Q /S %BUILD_ROOT_DIR% >nul 2>&1
+rmdir /s /q %BUILD_ROOT_DIR% >nul 2>&1
+del /Q /S %BUILD_ROOT_PREFIX% >nul 2>&1
+rmdir /s /q %BUILD_ROOT_PREFIX% >nul 2>&1
+if EXIST %SOURCE_DIR%\CCI-VERSION-DIST del /Q /S %SOURCE_DIR%\CCI-VERSION-DIST >nul 2>&1
+) else (
 del /Q /S %BUILD_DIR% >nul 2>&1
 rmdir /s /q %BUILD_DIR% >nul 2>&1
 del /Q /S %BUILD_PREFIX% >nul 2>&1
 rmdir /s /q %BUILD_PREFIX% >nul 2>&1
-del /Q /S %SOURCE_DIR%\CCI-VERSION-DIST >nul 2>&1
+if EXIST %SOURCE_DIR%\CCI-VERSION-DIST del /Q /S %SOURCE_DIR%\CCI-VERSION-DIST >nul 2>&1
+)
 GOTO :EOF
 
 
@@ -248,20 +259,19 @@ GOTO :EOF
 @echo. OPTIONS
 @echo.  /32      or /64    Build 32bit or 64bit applications (default: 64)
 @echo.  /Release or /Debug Build with release or debug mode (default: %BUILD_MODE%)
-@echo.  /vs2017            Build to default generator for CAS_CLIENT_CCI (default: %BUILD_GENERATOR%)
-@echo.  /vs2015 or /vs2012 Build to select generator for CAS_CLIENT_ODBC
+@echo.  /vs2017            Build with VS2017 (default: %BUILD_GENERATOR%)
+@echo.  /vs2015 or /vs2012 Build with VS2015/2012
 @echo.  /help /h /?        Display this help message and exit
 @echo.
 @echo. TARGETS
-@echo.  all                BUILD and DIST
-@echo.  build              Build all applications (default)
-@echo.  dist               Create CCI packages (zip file)
+@echo.  all                Build and Packaging
+@echo.  build              Build (default)
 @echo.
 @echo. Examples:
 @echo.  build.bat                        # Build and pack CCI packages with default option
-@echo.  build.bat clean                  # clean
+@echo.  build.bat clean                  # Clean
 @echo.  build.bat /32 build              # 32bit release build only
-@echo.  build.bat /64 /debug dist        # Create 64bit debug mode packages
+@echo.  build.bat /64 /debug all         # 64bit debug mode Build and pack CCI packages
 @echo.  build.bat /vs2012 /64 /debug all # 64bit debug mode Build and pack CCI packages with vs2012 generator
 GOTO :EOF
 

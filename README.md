@@ -22,10 +22,11 @@ Below You will see the brief list of sections to guide You to easily get started
 ### CUBRID CCI Driver Source Build Guide
   * Requirement
     - GNU Developer Toolset 8 or higher (Linux)
-    - MSVC 2017 (Windows)
+    - Git (Linux, Windows) 1.7.6 or higher
+    - MSVC 2017 or 2017 or 2012 (Windows, 2017 is recommended)
     - CMake (Linux, Windows)
 
-- Windows
+* Windows
   ```
   build)
   win\build.bat 
@@ -33,8 +34,9 @@ Below You will see the brief list of sections to guide You to easily get started
   help)
   win\build.bat /h
   ```
+  - IMPORTANT: Add <git-installation-directory>/usr/bin to %PATH% environment variable
     
-- Linux
+* Linux
 
   ```
   build)
