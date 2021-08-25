@@ -27,11 +27,20 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _GETOPT_H_
-#define _GETOPT_H_
+#ifndef _CUBRID_GETOPT_H_
+#define _CUBRID_GETOPT_H_
 
+#include "config.h"
+
+#ifdef HAVE_GETOPT_H
+#include <getopt.h>		/* for getopt_long */
+#include <unistd.h>		/* for getopt */
+#else
 #if !defined(WINDOWS)
 #include <sys/cdefs.h>
+#define DllImport
+#else
+#define DllImport  __declspec(dllimport)
 #endif
 
 /*
@@ -45,7 +54,7 @@ struct option
 {
   /* name of long option */
   const char *name;
-  /* 
+  /*
    * one of no_argument, required_argument, and optional_argument:
    * whether option takes an argument
    */
@@ -65,20 +74,17 @@ extern "C"
   int getopt_long (int, char *const *, const char *, const struct option *, int *);
 
 /* On some platforms, this is in libc, but not in a system header */
-#ifndef _OPTRESET_DECLARED
-#define _OPTRESET_DECLARED
-  extern int optreset;
-#endif
-#ifndef _GETOPT_DECLARED
-#define _GETOPT_DECLARED
-  extern char *optarg;
-  extern int opterr;
-  extern int optind;
-  extern int optopt;
-#endif
+  extern DllImport int optreset;
+  extern DllImport char *optarg;
+  extern DllImport int opterr;
+  extern DllImport int optind;
+  extern DllImport int optopt;
 
 #ifdef __cplusplus
-};
+}
+#endif
 #endif
 
-#endif /* !_GETOPT_H_ */
+typedef struct option GETOPT_LONG;
+
+#endif /* !_CUBRID_GETOPT_H_ */

@@ -31,6 +31,12 @@
 
 /*
  * cas_cci.h -
+ *
+ * CAUTION!
+ *
+ * In case of common,
+ * engine source (src/broker/broker_cas_cci.h) must be updated,
+ * becuase CCI source and Engine source have been separated.
  */
 
 #ifndef	_CAS_CCI_H_
@@ -44,8 +50,7 @@
 /************************************************************************
  * IMPORTED OTHER HEADER FILES						*
  ************************************************************************/
-#include "cas_error.h"
-#include "dbtran_def.h"
+#include "compat_dbtran_def.h"
 
 /************************************************************************
  * EXPORTED DEFINITIONS							*
@@ -962,5 +967,13 @@ extern "C"
 /************************************************************************
  * EXPORTED VARIABLES							*
  ************************************************************************/
+
+/*
+ * CAUTION!
+ *
+ * In case of common,
+ * engine source (src/cci/broker_cas_cci.h) must be updated,
+ * becuase CCI source and Engine source have been separated.
+ */
 
 #endif				/* _CAS_CCI_H_ */

@@ -55,7 +55,7 @@
 
 #include "cci_common.h"
 #include "cas_cci.h"
-#include "cas_protocol.h"
+#include "broker_cas_protocol.h"
 #include <openssl/ssl.h>
 
 /************************************************************************

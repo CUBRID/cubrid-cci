@@ -16,10 +16,14 @@
  *
  */
 
-/*
- * cubrid_api.h -
- */
+#ifndef _VERSION_CCI_H_
+#define _VERSION_CCI_H_
 
-#ifndef _CUBRID_API_H_
-#define _CUBRID_API_H_
-#endif /* _CUBRID_API_H_ */
+#define CCI_MAJOR_VERSION @CCI_MAJOR_VERSION@
+#define CCI_MINOR_VERSION @CCI_MINOR_VERSION@
+#define CCI_PATCH_VERSION @CCI_PATCH_VERSION@
+#define CCI_EXTRA_VERSION @CCI_EXTRA_VERSION@
+
+#define CCI_BUILD_NUMBER @CCI_BUILD_NUMBER@
+
+#endif /* _VERSION_CCI_H_ */

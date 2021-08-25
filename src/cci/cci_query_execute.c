@@ -48,7 +48,7 @@
  * OTHER IMPORTED HEADER FILES						*
  ************************************************************************/
 
-#include "cas_protocol.h"
+#include "broker_cas_protocol.h"
 #include "cci_common.h"
 #include "cci_query_execute.h"
 #include "cci_network.h"
