@@ -186,9 +186,9 @@ if(WIN32)
   target_link_libraries(cascci LINK_PRIVATE ws2_32)
 endif(WIN32)
 
-if(NOT ${EP_TARGETS} STREQUAL "")
+if(NOT "${EP_TARGETS}" STREQUAL "")
   add_dependencies(cascci ${EP_TARGETS})
-endif(NOT ${EP_TARGETS} STREQUAL "")
+endif(NOT "${EP_TARGETS}" STREQUAL "")
 
 install(TARGETS cascci
   RUNTIME DESTINATION ${CUBRID_CCIDIR}/bin COMPONENT CCI
