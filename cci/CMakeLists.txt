@@ -72,6 +72,9 @@ endif()
 
 if(VERSION_MATCHES_LENGTH GREATER 3)
   list(GET VERSION_MATCHES 3 CCI_EXTRA_VERSION)
+  if(VERSION_MATCHES_LENGTH GREATER 4)
+    list(GET VERSION_MATCHES 4 CCI_HASH_TAG)
+  endif(VERSION_MATCHES_LENGTH GREATER 4)
 else(VERSION_MATCHES_LENGTH GREATER 3)
   find_package(Git)
   if(EXISTS "${CCI_ROOT_PATH}/.git" AND GIT_FOUND)
@@ -109,13 +112,21 @@ else(VERSION_MATCHES_LENGTH GREATER 3)
       message(FATAL_ERROR "Could not get count information from Git")
     endif(git_result)
     set(CCI_EXTRA_VERSION ${commit_count})
+    execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse --short=7 HEAD
+      OUTPUT_VARIABLE commit_hash RESULT_VARIABLE git_result
+      ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE
+      WORKING_DIRECTORY ${CCI_ROOT_PATH})
+    if(git_result)
+      message(FATAL_ERROR "Could not get hash information from Git")
+    endif(git_result)
+    set(CCI_HASH_TAG ${commit_hash})
     # Generate the same file in other directory to trigger cmake re-configure when the HEAD changes
     # configure_file("${CCI_ROOT_PATH}/.git/HEAD" ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/HEAD.check_cache COPYONLY)
   else(EXISTS "${CCI_ROOT_PATH}/.git" AND GIT_FOUND)
     set(CUBRID_EXTRA_VERSION "0000")
   endif(EXISTS "${CCI_ROOT_PATH}/.git" AND GIT_FOUND)
 endif(VERSION_MATCHES_LENGTH GREATER 3)
-set(CCI_BUILD_NUMBER ${CCI_MAJOR_VERSION}.${CCI_MINOR_VERSION}.${CCI_PATCH_VERSION}.${CCI_EXTRA_VERSION})
+set(CCI_BUILD_NUMBER ${CCI_MAJOR_VERSION}.${CCI_MINOR_VERSION}.${CCI_PATCH_VERSION}.${CCI_EXTRA_VERSION}-${CCI_HASH_TAG})
 message(STATUS "CCI_BUILD_NUMBER:[${CCI_BUILD_NUMBER}]")
 # TODO: for only cci version (cci_version.h)
 configure_file(${CCI_ROOT_PATH}/cmake/version_cci.h.cmake ${CMAKE_BINARY_DIR}/cci_version.h)
@@ -162,9 +173,9 @@ if(NOT WITH_CCI)
     target_link_libraries(cascci_static LINK_PRIVATE ws2_32)
   endif(WIN32)
   
-  if(NOT ${EP_TARGETS} STREQUAL "")
+  if(DEFINED EP_TARGETS)
     add_dependencies(cascci_static ${EP_TARGETS})
-  endif(NOT ${EP_TARGETS} STREQUAL "")
+  endif(DEFINED EP_TARGETS)
 
   install(TARGETS cascci_static
     LIBRARY DESTINATION ${CUBRID_STATIC_LIBDIR} COMPONENT STATIC_CCI
@@ -186,9 +197,9 @@ if(WIN32)
   target_link_libraries(cascci LINK_PRIVATE ws2_32)
 endif(WIN32)
 
-if(NOT "${EP_TARGETS}" STREQUAL "")
+if(DEFINED EP_TARGETS)
   add_dependencies(cascci ${EP_TARGETS})
-endif(NOT "${EP_TARGETS}" STREQUAL "")
+endif(DEFINED EP_TARGETS)
 
 install(TARGETS cascci
   RUNTIME DESTINATION ${CUBRID_CCIDIR}/bin COMPONENT CCI
