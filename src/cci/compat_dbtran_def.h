@@ -30,6 +30,7 @@
  * becuase CCI source and Engine source have been separated.
  */
 
+#ifndef _DBTRAN_DEF_H_ //duplicate in engine build (src/compat/dbtran_def.h)
 #ifndef _COMPAT_DBTRAN_DEF_H_
 #define _COMPAT_DBTRAN_DEF_H_
 
@@ -79,3 +80,4 @@ typedef enum
  */
 
 #endif // _COMPAT_DBTRAN_DEF_H_
+#endif // _DBTRAN_DEF_H_
