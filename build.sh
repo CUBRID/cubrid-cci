@@ -114,6 +114,9 @@ function build_initialize ()
   if [ -f $source_dir/BUILD_NUMBER ]; then
     version_file=BUILD_NUMBER
     version=$(cat $source_dir/$version_file)
+  elif [ -f $source_dir/CCI-VERSION-DIST ]; then
+    version_file=CCI-VERSION-DIST
+    version=$(cat $source_dir/$version_file)
   else
     version="0.0.0.0000"
   fi
