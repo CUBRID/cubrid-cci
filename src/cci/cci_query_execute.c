@@ -1457,8 +1457,7 @@ qe_cursor (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, int offset, cha
 		  return CCI_ER_NO_MORE_DATA;
 		}
 
-	      if (is_connected_to_oracle (con_handle) && cursor_pos > req_handle->fetched_tuple_end
-		  && req_handle->is_fetch_completed)
+	      if (cursor_pos > req_handle->fetched_tuple_end && req_handle->is_fetch_completed)
 		{
 		  return CCI_ER_NO_MORE_DATA;
 		}
@@ -1668,8 +1667,7 @@ qe_fetch (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, char flag, int r
     }
   else
     {
-      if (is_connected_to_oracle (con_handle) && req_handle->cursor_pos > req_handle->fetched_tuple_end
-	  && req_handle->is_fetch_completed)
+      if (req_handle->cursor_pos > req_handle->fetched_tuple_end && req_handle->is_fetch_completed)
 	{
 	  return CCI_ER_NO_MORE_DATA;
 	}
