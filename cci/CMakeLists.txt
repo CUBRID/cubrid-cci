@@ -132,6 +132,7 @@ endif(VERSION_MATCHES_LENGTH GREATER 3)
 message(STATUS "CCI_BUILD_NUMBER:[${CCI_BUILD_NUMBER}]")
 # TODO: for only cci version (cci_version.h)
 configure_file(${CCI_ROOT_PATH}/cmake/version_cci.h.cmake ${CMAKE_BINARY_DIR}/cci_version.h)
+file(COPY ${CMAKE_BINARY_DIR}/cci_version.h DESTINATION ${CCI_ROOT_PATH}/win)
 
 if(WIN32)
 execute_process(COMMAND CMD /c echo ${CCI_BUILD_NUMBER}>CCI-VERSION-DIST
@@ -154,7 +155,7 @@ if(NOT WITH_CCI)
   target_link_libraries(cascci_static LINK_PRIVATE ${EP_LIBS} ${CMAKE_THREAD_LIBS_INIT})
   target_link_libraries(cascci_static ${CMAKE_DL_LIBS})
   set_target_properties(cascci_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  set_target_properties(cascci_static PROPERTIES OUTPUT_NAME cas_cci)
+  set_target_properties(cascci_static PROPERTIES OUTPUT_NAME cascci)
   if(WIN32)
     target_compile_options(cascci_static PRIVATE 
     "$<$<CONFIG:Debug>:/MTd>"
