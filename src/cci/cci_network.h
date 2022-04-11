@@ -95,6 +95,7 @@ extern int net_cancel_request (T_CON_HANDLE * con_handle);
 extern int net_check_cas_request (T_CON_HANDLE * con_handle);
 extern bool net_peer_alive (unsigned char *ip_addr, int port, int timeout_msec);
 extern bool net_check_broker_alive (unsigned char *ip_addr, int port, int timeout_msec, char useSSL);
+extern void net_set_client_type (int client_type);
 /************************************************************************
  * EXPORTED VARIABLES							*
  ************************************************************************/

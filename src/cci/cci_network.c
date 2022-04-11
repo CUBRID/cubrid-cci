@@ -1642,3 +1642,9 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd)
   con_handle->ssl_handle.is_connected = true;
   return err_code;
 }
+
+void
+net_set_client_type (int client_type)
+{
+  cci_client_type = client_type;
+}
