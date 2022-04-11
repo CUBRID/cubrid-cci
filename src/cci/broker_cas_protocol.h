@@ -71,7 +71,8 @@ extern "C"
     CAS_CLIENT_PHP = 4,
     CAS_CLIENT_OLEDB = 5,
     CAS_CLIENT_SERVER_SIDE_JDBC = 6,
-    CAS_CLIENT_TYPE_MAX = 6
+    CAS_CLIENT_GATEWAY = 7,
+    CAS_CLIENT_TYPE_MAX = 7
   } CAS_CLIENT_TYPE;
 
   typedef enum
@@ -264,18 +265,18 @@ extern "C"
 
 #define CAS_TYPE_FIRST_BYTE_PROTOCOL_MASK 0x80
 
-typedef int T_BROKER_VERSION;
+  typedef int T_BROKER_VERSION;
 
 #ifdef __cplusplus
 }
 #endif
 
  /*
- * CAUTION!
- *
- * In case of common,  
- * engine source (src/broker/cas_protocol.h) must be updated,
- * becuase CCI source and Engine source have been separated.
- */
+  * CAUTION!
+  *
+  * In case of common,  
+  * engine source (src/broker/cas_protocol.h) must be updated,
+  * becuase CCI source and Engine source have been separated.
+  */
 
 #endif				/* _BROKER_CAS_PROTOCOL_H_ */

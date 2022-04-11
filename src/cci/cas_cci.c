@@ -341,7 +341,8 @@ int
 cci_get_version (int *major, int *minor, int *patch)
 {
 #ifdef CCI_DEBUG
-  CCI_DEBUG_PRINT (print_debug_msg ("cci_get_version:%d.%d.%d", CCI_MAJOR_VERSION, CCI_MINOR_VERSION, CCI_PATCH_VERSION));
+  CCI_DEBUG_PRINT (print_debug_msg
+		   ("cci_get_version:%d.%d.%d", CCI_MAJOR_VERSION, CCI_MINOR_VERSION, CCI_PATCH_VERSION));
 #endif
 
   if (major)
@@ -6659,4 +6660,10 @@ cci_get_cas_info (int mapped_conn_id, char *info_buf, int buf_length, T_CCI_ERRO
   con_handle->used = false;
 
   return error;
+}
+
+void
+cci_set_client_type (int client_type)
+{
+  net_set_client_type (client_type);
 }
