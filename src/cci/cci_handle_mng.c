@@ -1335,6 +1335,7 @@ init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_nam
   con_handle->shard_id = CCI_SHARD_ID_INVALID;
 
   con_handle->ssl_handle.is_connected = false;
+  con_handle->is_gateway_client = 0;
   return 0;
 }
 

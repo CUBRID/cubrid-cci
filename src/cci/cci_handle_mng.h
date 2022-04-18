@@ -277,6 +277,8 @@ typedef struct
   /* ssl */
   T_SSL_HANDLE ssl_handle;
 
+  int is_gateway_client;
+
 } T_CON_HANDLE;
 
 /************************************************************************
