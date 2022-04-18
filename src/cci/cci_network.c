@@ -178,6 +178,8 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
   memset (client_info, 0, sizeof (client_info));
   memset (db_info, 0, sizeof (db_info));
 
+  con_handle->is_gateway_client = cci_client_type;
+
   if (con_handle->useSSL == USESSL)
     {
       memcpy (client_info, SRV_CON_CLIENT_MAGIC_STR_SSL, SRV_CON_CLIENT_MAGIC_LEN);
