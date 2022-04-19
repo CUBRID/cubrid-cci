@@ -249,8 +249,6 @@
 
 #define CCI_TZ_SIZE 63
 
-#define CLIENT_TYPE_GATEWAY    7
-
 /* for cci auto_comit mode support */
 typedef enum
 {
@@ -980,7 +978,6 @@ extern "C"
 				    char *attr_name, char flag, T_CCI_ERROR * err_buf);
   extern int cci_is_shard (int con_h_id, T_CCI_ERROR * err_buf);
   extern int cci_get_cas_info (int mapped_conn_id, char *info_buf, int buf_length, T_CCI_ERROR * err_buf);
-  extern void cci_set_client_type (int client_type);
 
 #ifdef __cplusplus
 }
