@@ -6661,9 +6661,3 @@ cci_get_cas_info (int mapped_conn_id, char *info_buf, int buf_length, T_CCI_ERRO
 
   return error;
 }
-
-void
-cci_set_client_type (int client_type)
-{
-  net_set_client_type (client_type);
-}

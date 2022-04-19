@@ -258,6 +258,7 @@ typedef struct
   char log_trace_api;
   char log_trace_network;
   char useSSL;
+  char __gateway;
 
   /* to check timeout */
   struct timeval start_time;	/* function start time to check timeout */
@@ -276,8 +277,6 @@ typedef struct
 
   /* ssl */
   T_SSL_HANDLE ssl_handle;
-
-  int is_gateway_client;
 
 } T_CON_HANDLE;
 

@@ -1324,6 +1324,7 @@ init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_nam
   con_handle->ssl_handle.ssl = NULL;
   con_handle->ssl_handle.ctx = NULL;
   con_handle->useSSL = false;
+  con_handle->__gateway = false;
   con_handle->deferred_max_close_handle_count = DEFERRED_CLOSE_HANDLE_ALLOC_SIZE;
   con_handle->deferred_close_handle_list = (int *) MALLOC (sizeof (int) * con_handle->deferred_max_close_handle_count);
   con_handle->deferred_close_handle_count = 0;
@@ -1335,7 +1336,6 @@ init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_nam
   con_handle->shard_id = CCI_SHARD_ID_INVALID;
 
   con_handle->ssl_handle.is_connected = false;
-  con_handle->is_gateway_client = 0;
   return 0;
 }
 
