@@ -20,8 +20,14 @@ cmake_minimum_required(VERSION 2.8)
 
 if(WITH_CCI)
 message(STATUS "======== WITH_CCI ==========")
+
+set(CCI_BASE_DIR                 ${CMAKE_CURRENT_SOURCE_DIR}/src/base)
+set(CCI_DIR                      ${CMAKE_CURRENT_SOURCE_DIR}/src/cci)
+set(CCI_TOOLS_DIR                ${CMAKE_CURRENT_SOURCE_DIR}/src/tools)
+
 add_subdirectory(cci)
 add_subdirectory(tools)
+
 else(WITH_CCI)
 message(STATUS "======== CCI REPO MAKE ==========") 
 #also searches for modules onto cubrid/cmake
@@ -174,9 +180,9 @@ endif()
 message(STATUS "Build ${PROJECT_NAME} ${CUBRID_VERSION} ${TARGET_PLATFORM_BITS}bit ${CMAKE_BUILD_TYPE} on ${CMAKE_SYSTEM_NAME} ${CMAKE_SYSTEM_PROCESSOR}")
 
 # source directories
-set(BASE_DIR                 ${CMAKE_SOURCE_DIR}/src/base)
+set(CCI_BASE_DIR                 ${CMAKE_SOURCE_DIR}/src/base)
 set(CCI_DIR                  ${CMAKE_SOURCE_DIR}/src/cci)
-set(TOOLS_DIR                ${CMAKE_SOURCE_DIR}/src/tools)
+set(CCI_TOOLS_DIR                ${CMAKE_SOURCE_DIR}/src/tools)
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(

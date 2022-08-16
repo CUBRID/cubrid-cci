@@ -17,7 +17,7 @@
 #
 
 set(CASCCI_SOURCES
-  ${BASE_DIR}/porting.c
+  ${CCI_BASE_DIR}/porting.c
   ${CCI_DIR}/cas_cci.c
   ${CCI_DIR}/cci_util.c
   ${CCI_DIR}/cci_query_execute.c
@@ -34,7 +34,7 @@ set(CASCCI_SOURCES
   )
 if(WIN32)
   list(APPEND CASCCI_SOURCES ${CCI_DIR}/cci_wsa_init.c)
-  list(APPEND CASCCI_SOURCES ${BASE_DIR}/rand.c)
+  list(APPEND CASCCI_SOURCES ${CCI_BASE_DIR}/rand.c)
 endif(WIN32)
 
 SET_SOURCE_FILES_PROPERTIES(
@@ -196,7 +196,7 @@ if(WIN32)
   else(FOR_OTHER_DRIVER)
     target_compile_definitions(cascci PRIVATE CAS_CCI_DL)
   endif(FOR_OTHER_DRIVER)
-  set_target_properties(cascci PROPERTIES LINK_FLAGS "/DEF:\"${CMAKE_SOURCE_DIR}/win/cascci/cascci.def\"" LINK_FLAGS_RELEASE "/NODEFAULTLIB:libcmt.lib" LINK_FLAGS_DEBUG "/NODEFAULTLIB:msvcrt.lib")
+  set_target_properties(cascci PROPERTIES LINK_FLAGS "/DEF:\"${CCI_ROOT_PATH}/win/cascci/cascci.def\"" LINK_FLAGS_RELEASE "/NODEFAULTLIB:libcmt.lib" LINK_FLAGS_DEBUG "/NODEFAULTLIB:msvcrt.lib")
   target_link_libraries(cascci LINK_PRIVATE ws2_32)
 endif(WIN32)
 
