@@ -675,6 +675,7 @@ int
 cci_disconnect (int mapped_conn_id, T_CCI_ERROR * err_buf)
 {
   int error = CCI_ER_NO_ERROR;
+  int rv;
   T_CON_HANDLE *con_handle = NULL;
 
 #ifdef CCI_DEBUG
@@ -712,14 +713,24 @@ cci_disconnect (int mapped_conn_id, T_CCI_ERROR * err_buf)
 
       get_last_error (con_handle, err_buf);
     }
-  else if (con_handle->broker_info[BROKER_INFO_CCI_PCONNECT] && hm_put_con_to_pool (con_handle->id) >= 0)
+  else if (con_handle->broker_info[BROKER_INFO_CCI_PCONNECT])
     {
-      cci_end_tran_internal (con_handle, CCI_TRAN_ROLLBACK);
-      API_ELOG (con_handle, 0);
+      if (con_handle->id < 0)
+	{
+	  return CCI_ER_INVALID_ARGS;
+	}
+      MUTEX_LOCK (con_handle_table_mutex);
+      rv = hm_put_con_to_pool (con_handle->id);
+      MUTEX_UNLOCK (con_handle_table_mutex);
+      if (rv >= 0)
+	{
+	  cci_end_tran_internal (con_handle, CCI_TRAN_ROLLBACK);
+	  API_ELOG (con_handle, 0);
 
-      get_last_error (con_handle, err_buf);
-      con_handle->used = false;
-      hm_release_connection (mapped_conn_id, &con_handle);
+	  get_last_error (con_handle, err_buf);
+	  con_handle->used = false;
+	  hm_release_connection (mapped_conn_id, &con_handle);
+	}
     }
   else
     {
