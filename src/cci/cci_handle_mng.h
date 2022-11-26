@@ -314,6 +314,7 @@ extern int hm_ip_str_to_addr (char *ip_str, unsigned char *ip_addr);
 extern T_CON_HANDLE *hm_get_con_from_pool (unsigned char *ip_addr, int port, char *dbname, char *dbuser,
 					   char *dbpasswd);
 extern int hm_put_con_to_pool (int con);
+extern int hm_put_con_to_pool_exceed (void);
 
 extern T_BROKER_VERSION hm_get_broker_version (T_CON_HANDLE * con_handle);
 extern bool hm_broker_understand_renewed_error_code (T_CON_HANDLE * con_handle);
