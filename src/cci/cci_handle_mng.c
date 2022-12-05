@@ -187,17 +187,6 @@ hm_put_con_to_pool (int con)
 }
 
 int
-hm_put_con_to_pool_exceed (void)
-{
-  if (num_conn_pool >= sizeof (conn_pool) / sizeof (int))
-    {
-      return -1;
-    }
-
-  return 0;
-}
-
-int
 hm_ip_str_to_addr (char *ip_str, unsigned char *ip_addr)
 {
   if (is_ip_str (ip_str))
