@@ -712,40 +712,34 @@ cci_disconnect (int mapped_conn_id, T_CCI_ERROR * err_buf)
 
       get_last_error (con_handle, err_buf);
     }
-  else if (con_handle->broker_info[BROKER_INFO_CCI_PCONNECT] && hm_put_con_to_pool_exceed () == 0)
-    {
-      MUTEX_LOCK (con_handle_table_mutex);
-      if (con_handle->id < 0 || hm_put_con_to_pool (con_handle->id) < 0)
-	{
-	  qe_con_close (con_handle);
-
-	  error = CCI_ER_BIND_INDEX;
-	  API_ELOG (con_handle, error);
-	  reset_error_buffer (&(con_handle->err_buf));
-	  set_error_buffer (&(con_handle->err_buf), error, NULL);
-
-	  hm_delete_connection (mapped_conn_id, &con_handle);
-	}
-      else
-	{
-	  API_ELOG (con_handle, 0);
-	  cci_end_tran_internal (con_handle, CCI_TRAN_ROLLBACK);
-	  hm_release_connection (mapped_conn_id, &con_handle);
-	}
-      get_last_error (con_handle, err_buf);
-      con_handle->used = false;
-      MUTEX_UNLOCK (con_handle_table_mutex);
-    }
   else
     {
+      if (con_handle->broker_info[BROKER_INFO_CCI_PCONNECT])
+	{
+	  cci_end_tran_internal (con_handle, CCI_TRAN_ROLLBACK);
+
+	  MUTEX_LOCK (con_handle_table_mutex);
+	  if (con_handle->id >= 0 && hm_put_con_to_pool (con_handle->id) >= 0)
+	    {
+	      API_ELOG (con_handle, 0);
+	      get_last_error (con_handle, err_buf);
+	      con_handle->used = false;
+	      hm_release_connection (mapped_conn_id, &con_handle);
+	      MUTEX_UNLOCK (con_handle_table_mutex);
+
+	      return error;
+	    }
+	  MUTEX_UNLOCK (con_handle_table_mutex);
+	}
+
       error = qe_con_close (con_handle);
       API_ELOG (con_handle, error);
 
       set_error_buffer (&(con_handle->err_buf), error, NULL);
       get_last_error (con_handle, err_buf);
-      con_handle->used = false;
 
       MUTEX_LOCK (con_handle_table_mutex);
+      con_handle->used = false;
       hm_delete_connection (mapped_conn_id, &con_handle);
       MUTEX_UNLOCK (con_handle_table_mutex);
     }
