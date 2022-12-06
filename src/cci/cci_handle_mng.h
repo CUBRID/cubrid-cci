@@ -83,6 +83,9 @@
 
 #define REACHABLE       true
 #define UNREACHABLE     false
+
+#define MAX_CON_HANDLE                  2048
+
 /************************************************************************
  * PUBLIC TYPE DEFINITIONS						*
  ************************************************************************/

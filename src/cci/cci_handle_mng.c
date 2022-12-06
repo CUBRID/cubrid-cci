@@ -72,8 +72,6 @@
  * PRIVATE DEFINITIONS							*
  ************************************************************************/
 
-#define MAX_CON_HANDLE                  2048
-
 #define REQ_HANDLE_ALLOC_SIZE           256
 
 #define CCI_MAX_CONNECTION_POOL         256

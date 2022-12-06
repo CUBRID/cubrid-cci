@@ -132,6 +132,7 @@ int wsa_initialize ();
 #define CON_HANDLE_ID_FACTOR            1000000
 #define CON_ID(a) ((a) / CON_HANDLE_ID_FACTOR)
 #define REQ_ID(a) ((a) % CON_HANDLE_ID_FACTOR)
+
 /************************************************************************
  * PRIVATE FUNCTION PROTOTYPES						*
  ************************************************************************/
@@ -712,25 +713,34 @@ cci_disconnect (int mapped_conn_id, T_CCI_ERROR * err_buf)
 
       get_last_error (con_handle, err_buf);
     }
-  else if (con_handle->broker_info[BROKER_INFO_CCI_PCONNECT] && hm_put_con_to_pool (con_handle->id) >= 0)
-    {
-      cci_end_tran_internal (con_handle, CCI_TRAN_ROLLBACK);
-      API_ELOG (con_handle, 0);
-
-      get_last_error (con_handle, err_buf);
-      con_handle->used = false;
-      hm_release_connection (mapped_conn_id, &con_handle);
-    }
   else
     {
+      if (con_handle->broker_info[BROKER_INFO_CCI_PCONNECT])
+	{
+	  cci_end_tran_internal (con_handle, CCI_TRAN_ROLLBACK);
+
+	  MUTEX_LOCK (con_handle_table_mutex);
+	  if ((con_handle->id >= 1 && con_handle->id <= MAX_CON_HANDLE) && hm_put_con_to_pool (con_handle->id) >= 0)
+	    {
+	      API_ELOG (con_handle, 0);
+	      get_last_error (con_handle, err_buf);
+	      con_handle->used = false;
+	      hm_release_connection (mapped_conn_id, &con_handle);
+	      MUTEX_UNLOCK (con_handle_table_mutex);
+
+	      return error;
+	    }
+	  MUTEX_UNLOCK (con_handle_table_mutex);
+	}
+
       error = qe_con_close (con_handle);
       API_ELOG (con_handle, error);
 
       set_error_buffer (&(con_handle->err_buf), error, NULL);
       get_last_error (con_handle, err_buf);
-      con_handle->used = false;
 
       MUTEX_LOCK (con_handle_table_mutex);
+      con_handle->used = false;
       hm_delete_connection (mapped_conn_id, &con_handle);
       MUTEX_UNLOCK (con_handle_table_mutex);
     }
