@@ -132,6 +132,9 @@ int wsa_initialize ();
 #define CON_HANDLE_ID_FACTOR            1000000
 #define CON_ID(a) ((a) / CON_HANDLE_ID_FACTOR)
 #define REQ_ID(a) ((a) % CON_HANDLE_ID_FACTOR)
+
+#define MAX_CON_HANDLE                  2048
+
 /************************************************************************
  * PRIVATE FUNCTION PROTOTYPES						*
  ************************************************************************/
@@ -719,7 +722,7 @@ cci_disconnect (int mapped_conn_id, T_CCI_ERROR * err_buf)
 	  cci_end_tran_internal (con_handle, CCI_TRAN_ROLLBACK);
 
 	  MUTEX_LOCK (con_handle_table_mutex);
-	  if (con_handle->id >= 0 && hm_put_con_to_pool (con_handle->id) >= 0)
+	  if ((con_handle->id >= 1 && con_handle->id <= MAX_CON_HANDLE) && hm_put_con_to_pool (con_handle->id) >= 0)
 	    {
 	      API_ELOG (con_handle, 0);
 	      get_last_error (con_handle, err_buf);
