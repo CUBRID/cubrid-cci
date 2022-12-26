@@ -129,7 +129,6 @@ int wsa_initialize ();
 #define CCI_DS_USESSL_DEFAULT 	false
 
 
-#define CON_HANDLE_ID_FACTOR            1000000
 #define CON_ID(a) ((a) / CON_HANDLE_ID_FACTOR)
 #define REQ_ID(a) ((a) % CON_HANDLE_ID_FACTOR)
 
