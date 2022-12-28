@@ -209,7 +209,7 @@
 #define SSIZEOF(val) ((ssize_t) sizeof(val))
 #endif
 
-#define CON_HANDLE_ID_FACTOR		1000000
+#define CON_HANDLE_ID_FACTOR		500000
 
 #define GET_CON_ID(H) ((H) / CON_HANDLE_ID_FACTOR)
 #define GET_REQ_ID(H) ((H) % CON_HANDLE_ID_FACTOR)
