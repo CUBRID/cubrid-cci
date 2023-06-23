@@ -456,7 +456,7 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
 
 connect_srv_error:
   hm_ssl_free (con_handle);
-  CLOSE_SOCKET (srv_sock_fd);
+  CLOSE_SOCKET (con_handle->sock_fd);
   return err_code;
 }
 
