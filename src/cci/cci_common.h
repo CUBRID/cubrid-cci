@@ -131,8 +131,11 @@
 	  struct linger linger_buf;	\
 	  linger_buf.l_onoff = 1;	\
 	  linger_buf.l_linger = 0;	\
-	  setsockopt(X, SOL_SOCKET, SO_LINGER, (char *) &linger_buf, sizeof(linger_buf));	\
-	  closesocket(X);		\
+	  if (!IS_INVALID_SOCKET(X)) {	\
+	    setsockopt(X, SOL_SOCKET, SO_LINGER, (char *) &linger_buf, sizeof(linger_buf));	\
+	    closesocket(X);		\
+	    (X) = INVALID_SOCKET;	\
+	  }				\
 	} while (0)
 #else
 #define CLOSE_SOCKET(X)			\
@@ -140,8 +143,11 @@
 	  struct linger linger_buf;	\
 	  linger_buf.l_onoff = 1;	\
 	  linger_buf.l_linger = 0;	\
-	  setsockopt(X, SOL_SOCKET, SO_LINGER, (char *) &linger_buf, sizeof(linger_buf));	\
-	  close(X);			\
+	  if (!IS_INVALID_SOCKET(X)) {	\
+	    setsockopt(X, SOL_SOCKET, SO_LINGER, (char *) &linger_buf, sizeof(linger_buf));	\
+	    close(X);			\
+	    (X) = INVALID_SOCKET;	\
+	  }				\
 	} while (0)
 #endif
 
