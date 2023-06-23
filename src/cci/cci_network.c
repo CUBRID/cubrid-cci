@@ -290,7 +290,7 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
 
   if (new_port != port && new_port > 0)
     {
-      CLOSE_SOCKET (srv_sock_fd);
+      CLOSE_SOCKET (con_handle->sock_fd);
 
       ret_value = connect_srv (ip_addr, new_port, con_handle->is_retry, &srv_sock_fd, login_timeout);
       if (ret_value < 0)
@@ -456,7 +456,7 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
 
 connect_srv_error:
   hm_ssl_free (con_handle);
-  CLOSE_SOCKET (srv_sock_fd);
+  CLOSE_SOCKET (con_handle->sock_fd);
   return err_code;
 }
 
