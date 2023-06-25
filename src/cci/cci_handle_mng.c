@@ -103,10 +103,10 @@ static unsigned int num_conn_pool = 0;
  * PRIVATE FUNCTION PROTOTYPES						*
  ************************************************************************/
 
-static int compare_conn_info (unsigned char *ip_addr, int port, char *dbname, char *dbuser, char *dbpasswd,
+static int compare_conn_info (unsigned char *ip_addr, int port, char *dbname, char *dbuser, char *dbpasswd, bool useSSL,
 			      T_CON_HANDLE * con_handle);
 static int init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_name, char *db_user,
-			    char *db_passwd);
+			    char *db_passwd, bool useSSL);
 static int new_con_handle_id (void);
 static int new_req_handle_id (T_CON_HANDLE * con_handle);
 static void con_handle_content_free (T_CON_HANDLE * con_handle);
@@ -136,10 +136,10 @@ static int con_handle_current_index;
  * IMPLEMENTATION OF PUBLIC FUNCTIONS	 				*
  ************************************************************************/
 static int
-compare_conn_info (unsigned char *ip_addr, int port, char *dbname, char *dbuser, char *dbpasswd,
+compare_conn_info (unsigned char *ip_addr, int port, char *dbname, char *dbuser, char *dbpasswd, bool useSSL,
 		   T_CON_HANDLE * con_handle)
 {
-  if (memcmp (ip_addr, con_handle->ip_addr, 4) != 0 || port != con_handle->port
+  if (con_handle->useSSL != useSSL ||  port != con_handle->port || memcmp (ip_addr, con_handle->ip_addr, 4) != 0
       || strcmp (dbname, con_handle->db_name) != 0 || strcmp (dbuser, con_handle->db_user) != 0
       || strcmp (dbpasswd, con_handle->db_passwd) != 0)
     {
@@ -150,14 +150,14 @@ compare_conn_info (unsigned char *ip_addr, int port, char *dbname, char *dbuser,
 }
 
 T_CON_HANDLE *
-hm_get_con_from_pool (unsigned char *ip_addr, int port, char *dbname, char *dbuser, char *dbpasswd)
+hm_get_con_from_pool (unsigned char *ip_addr, int port, char *dbname, char *dbuser, char *dbpasswd, bool useSSL)
 {
   int con = -1;
   unsigned int i;
 
   for (i = 0; i < num_conn_pool; i++)
     {
-      if (compare_conn_info (ip_addr, port, dbname, dbuser, dbpasswd, con_handle_table[conn_pool[i] - 1]))
+      if (compare_conn_info (ip_addr, port, dbname, dbuser, dbpasswd, useSSL, con_handle_table[conn_pool[i] - 1]))
 	{
 	  con = conn_pool[i];
 	  conn_pool[i] = conn_pool[--num_conn_pool];
@@ -215,7 +215,7 @@ hm_con_handle_table_init ()
 }
 
 T_CON_HANDLE *
-hm_con_handle_alloc (char *ip_str, int port, char *db_name, char *db_user, char *db_passwd)
+hm_con_handle_alloc (char *ip_str, int port, char *db_name, char *db_user, char *db_passwd, bool useSSL)
 {
   int handle_id;
   int error = 0;
@@ -232,7 +232,7 @@ hm_con_handle_alloc (char *ip_str, int port, char *db_name, char *db_user, char 
     {
       goto error_end;
     }
-  error = init_con_handle (con_handle, ip_str, port, db_name, db_user, db_passwd);
+  error = init_con_handle (con_handle, ip_str, port, db_name, db_user, db_passwd, useSSL);
   if (error < 0)
     {
       goto error_end;
@@ -1233,7 +1233,7 @@ hm_make_empty_session (T_CCI_SESSION_ID * id)
 }
 
 static int
-init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_name, char *db_user, char *db_passwd)
+init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_name, char *db_user, char *db_passwd, bool useSSL)
 {
   unsigned char ip_addr[4];
 
@@ -1321,7 +1321,7 @@ init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_nam
   con_handle->log_trace_network = false;
   con_handle->ssl_handle.ssl = NULL;
   con_handle->ssl_handle.ctx = NULL;
-  con_handle->useSSL = false;
+  con_handle->useSSL = useSSL;
   con_handle->__gateway = false;
   con_handle->deferred_max_close_handle_count = DEFERRED_CLOSE_HANDLE_ALLOC_SIZE;
   con_handle->deferred_close_handle_list = (int *) MALLOC (sizeof (int) * con_handle->deferred_max_close_handle_count);

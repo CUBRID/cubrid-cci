@@ -288,7 +288,7 @@ typedef struct
  ************************************************************************/
 
 extern void hm_con_handle_table_init (void);
-extern T_CON_HANDLE *hm_con_handle_alloc (char *ip_str, int port, char *db_name, char *db_user, char *db_passwd);
+extern T_CON_HANDLE *hm_con_handle_alloc (char *ip_str, int port, char *db_name, char *db_user, char *db_passwd, bool useSSL);
 extern int hm_req_handle_alloc (T_CON_HANDLE * connection, T_REQ_HANDLE ** statement);
 extern void hm_req_handle_free (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle);
 extern void hm_req_handle_free_all (T_CON_HANDLE * con_handle);
@@ -315,7 +315,7 @@ extern int req_close_query_result (T_REQ_HANDLE * req_handle);
 extern void hm_invalidate_all_req_handle (T_CON_HANDLE * con_handle);
 extern int hm_ip_str_to_addr (char *ip_str, unsigned char *ip_addr);
 extern T_CON_HANDLE *hm_get_con_from_pool (unsigned char *ip_addr, int port, char *dbname, char *dbuser,
-					   char *dbpasswd);
+					   char *dbpasswd, bool useSSL);
 extern int hm_put_con_to_pool (int con);
 
 extern T_BROKER_VERSION hm_get_broker_version (T_CON_HANDLE * con_handle);
@@ -349,6 +349,8 @@ extern void hm_make_empty_session (T_CCI_SESSION_ID * id);
 extern void hm_force_close_connection (T_CON_HANDLE * con_handle);
 
 extern void hm_ssl_free (T_CON_HANDLE * con_handle);
+
+extern bool has_ssl_property (char *prop);
 /************************************************************************
  * PUBLIC VARIABLES							*
  ************************************************************************/
