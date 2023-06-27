@@ -444,3 +444,27 @@ set_properties_end:
   API_ELOG (handle, error);
   return error;
 }
+
+bool
+has_ssl_property (char *prop)
+{
+  char useSSL;
+  char buf[4096] = { 0, };
+  T_URL_PROPERTY props[] = {
+    {"useSSL", BOOL_PROPERTY, &useSSL},
+  };
+
+  if (prop == NULL)
+    {
+      return false;
+    }
+
+  snprintf (buf, sizeof (buf), "%s", prop);
+
+  if (cci_url_parse_properties (props, DIM (props), buf) != CCI_ER_NO_ERROR)
+    {
+      return false;
+    }
+
+  return useSSL;
+}
