@@ -448,7 +448,7 @@ set_properties_end:
 bool
 has_ssl_property (char *prop)
 {
-  char useSSL;
+  char useSSL = false;
   char buf[4096] = { 0, };
   T_URL_PROPERTY props[] = {
     {"useSSL", BOOL_PROPERTY, &useSSL},
