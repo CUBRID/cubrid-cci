@@ -459,7 +459,7 @@ extern int qe_execute_batch (T_CON_HANDLE * con_handle, int num_query, char **sq
 extern int qe_query_result_copy (T_REQ_HANDLE * req_handle, T_CCI_QUERY_RESULT ** res_qr);
 
 extern int qe_get_data_str (T_VALUE_BUF * conv_val_buf, T_CCI_U_TYPE u_type, char *col_value_p, int col_val_size,
-			    void *value, int *indicator);
+			    void *value, int *indicator, bool oracle_style_number_return);
 extern int qe_get_data_bigint (T_CCI_U_TYPE u_type, char *col_value_p, void *value);
 extern int qe_get_data_ubigint (T_CCI_U_TYPE u_type, char *col_value_p, void *value);
 extern int qe_get_data_int (T_CCI_U_TYPE u_type, char *col_value_p, void *value);

@@ -150,7 +150,8 @@ t_set_get (T_SET * set, int index, T_CCI_A_TYPE a_type, void *value, int *indica
     {
     case CCI_A_TYPE_STR:
       err_code =
-	qe_get_data_str (&(set->conv_value_buffer), (T_CCI_U_TYPE) u_type, ele_value_p, data_size, value, indicator);
+	qe_get_data_str (&(set->conv_value_buffer), (T_CCI_U_TYPE) u_type, ele_value_p, data_size, value, indicator,
+			 false);
       break;
     case CCI_A_TYPE_INT:
       err_code = qe_get_data_int ((T_CCI_U_TYPE) u_type, ele_value_p, value);
