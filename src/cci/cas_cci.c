@@ -5264,8 +5264,8 @@ dbg_sch_type_str (T_CCI_SCH_TYPE sch_type)
       return "CCI_SCH_EXPORTED_KEYS";
     case CCI_SCH_CROSS_REFERENCE:
       return "CCI_SCH_CROSS_REFERENCE";
-    case CCI_SCH_ATTR_INCLUDE_SYNONYM:
-      return "CCI_SCH_ATTR_INCLUDE_SYNONYM";
+    case CCI_SCH_ATTR_WITH_SYNONYM:
+      return "CCI_SCH_ATTR_WITH_SYNONYM";
     default:
       return "***";
     }
