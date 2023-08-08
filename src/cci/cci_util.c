@@ -776,7 +776,7 @@ ut_double_to_str (double value, char *str, int size)
 }
 
 void
-ut_double_to_trailingzero_str (double value, char *str, int size)
+ut_double_to_str_with_remove_trailingzeros (double value, char *str, int size)
 {
   char double_str[MAX_DOUBLE_STRING];
   char return_str[MAX_DOUBLE_STRING] = { '-', '0', '.', '\0', };
@@ -784,13 +784,13 @@ ut_double_to_trailingzero_str (double value, char *str, int size)
 
   char *dot, *exp, *sp = return_str + 1;
 
-  sprintf (double_str, "%.16g", fabs (value));
+  snprintf (double_str, sizeof (double_str), "%.16g", fabs (value));
   dot = strchr (double_str, '.');
   exp = strchr (double_str, 'e');
 
   if (!exp)
     {
-      sprintf (str, "%s%s", (value < 0) ? "-" : "", double_str);
+      snprintf (str, size, "%s%s", (value < 0) ? "-" : "", double_str);
       return;
     }
 
@@ -814,7 +814,7 @@ ut_double_to_trailingzero_str (double value, char *str, int size)
 }
 
 void
-ut_float_to_trailingzero_str (float value, char *str, int size)
+ut_float_to_str_with_remove_trailingzeros (float value, char *str, int size)
 {
   char float_str[MAX_FLOAT_STRING];
   char return_str[MAX_FLOAT_STRING] = { '-', '0', '.', '\0', };
@@ -822,13 +822,13 @@ ut_float_to_trailingzero_str (float value, char *str, int size)
 
   char *dot, *exp, *sp = return_str + 1;
 
-  sprintf (float_str, "%g", fabsf (value));
+  snprintf (float_str, sizeof (float_str), "%g", fabsf (value));
   dot = strchr (float_str, '.');
   exp = strchr (float_str, 'e');
 
   if (!exp)
     {
-      sprintf (str, "%s%s", (value < 0) ? "-" : "", float_str);
+      snprintf (str, size, "%s%s", (value < 0) ? "-" : "", float_str);
       return;
     }
 

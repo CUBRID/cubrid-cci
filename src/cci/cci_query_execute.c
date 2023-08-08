@@ -3360,7 +3360,7 @@ qe_get_data_str (T_VALUE_BUF * conv_val_buf, T_CCI_U_TYPE u_type, char *col_valu
 	  }
 	else
 	  {
-	    ut_double_to_trailingzero_str (data, (char *) conv_val_buf->data, 512);
+	    ut_double_to_str_with_remove_trailingzeros (data, (char *) conv_val_buf->data, 512);
 	  }
       }
       break;
@@ -3381,7 +3381,7 @@ qe_get_data_str (T_VALUE_BUF * conv_val_buf, T_CCI_U_TYPE u_type, char *col_valu
 	  }
 	else
 	  {
-	    ut_float_to_trailingzero_str (data, (char *) conv_val_buf->data, 128);
+	    ut_float_to_str_with_remove_trailingzeros (data, (char *) conv_val_buf->data, 128);
 	  }
       }
       break;
