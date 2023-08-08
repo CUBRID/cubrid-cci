@@ -139,7 +139,7 @@ static int
 compare_conn_info (unsigned char *ip_addr, int port, char *dbname, char *dbuser, char *dbpasswd, bool useSSL,
 		   T_CON_HANDLE * con_handle)
 {
-  if (con_handle->useSSL != useSSL ||  port != con_handle->port || memcmp (ip_addr, con_handle->ip_addr, 4) != 0
+  if (con_handle->useSSL != useSSL || port != con_handle->port || memcmp (ip_addr, con_handle->ip_addr, 4) != 0
       || strcmp (dbname, con_handle->db_name) != 0 || strcmp (dbuser, con_handle->db_user) != 0
       || strcmp (dbpasswd, con_handle->db_passwd) != 0)
     {
@@ -1233,7 +1233,8 @@ hm_make_empty_session (T_CCI_SESSION_ID * id)
 }
 
 static int
-init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_name, char *db_user, char *db_passwd, bool useSSL)
+init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_name, char *db_user, char *db_passwd,
+		 bool useSSL)
 {
   unsigned char ip_addr[4];
 
@@ -1323,6 +1324,7 @@ init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_nam
   con_handle->ssl_handle.ctx = NULL;
   con_handle->useSSL = useSSL;
   con_handle->__gateway = false;
+  con_handle->oracle_style_number_return = false;
   con_handle->deferred_max_close_handle_count = DEFERRED_CLOSE_HANDLE_ALLOC_SIZE;
   con_handle->deferred_close_handle_list = (int *) MALLOC (sizeof (int) * con_handle->deferred_max_close_handle_count);
   con_handle->deferred_close_handle_count = 0;

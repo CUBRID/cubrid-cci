@@ -1792,7 +1792,9 @@ qe_get_data (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int col_no, i
   switch (a_type)
     {
     case CCI_A_TYPE_STR:
-      err_code = qe_get_data_str (&(req_handle->conv_value_buffer), u_type, col_value_p, data_size, value, indicator);
+      err_code =
+	qe_get_data_str (&(req_handle->conv_value_buffer), u_type, col_value_p, data_size, value, indicator,
+			 con_handle->oracle_style_number_return);
       break;
     case CCI_A_TYPE_BIGINT:
       err_code = qe_get_data_bigint (u_type, col_value_p, value);
@@ -3258,7 +3260,7 @@ qe_execute_batch (T_CON_HANDLE * con_handle, int num_query, char **sql_stmt, T_C
 
 int
 qe_get_data_str (T_VALUE_BUF * conv_val_buf, T_CCI_U_TYPE u_type, char *col_value_p, int col_val_size, void *value,
-		 int *indicator)
+		 int *indicator, bool oracle_style_number_return)
 {
   assert (u_type >= CCI_U_TYPE_FIRST && u_type <= CCI_U_TYPE_LAST);
 
@@ -3351,7 +3353,15 @@ qe_get_data_str (T_VALUE_BUF * conv_val_buf, T_CCI_U_TYPE u_type, char *col_valu
 	  {
 	    return CCI_ER_NO_MORE_MEMORY;
 	  }
-	ut_double_to_str (data, (char *) conv_val_buf->data, 512);
+
+	if (oracle_style_number_return == false)
+	  {
+	    ut_double_to_str (data, (char *) conv_val_buf->data, 512);
+	  }
+	else
+	  {
+	    ut_double_to_str_with_remove_trailingzeros (data, (char *) conv_val_buf->data, 512);
+	  }
       }
       break;
     case CCI_U_TYPE_FLOAT:
@@ -3364,7 +3374,15 @@ qe_get_data_str (T_VALUE_BUF * conv_val_buf, T_CCI_U_TYPE u_type, char *col_valu
 	  {
 	    return CCI_ER_NO_MORE_MEMORY;
 	  }
-	ut_float_to_str (data, (char *) conv_val_buf->data, 128);
+
+	if (oracle_style_number_return == false)
+	  {
+	    ut_float_to_str (data, (char *) conv_val_buf->data, 128);
+	  }
+	else
+	  {
+	    ut_float_to_str_with_remove_trailingzeros (data, (char *) conv_val_buf->data, 128);
+	  }
       }
       break;
     case CCI_U_TYPE_DATE:

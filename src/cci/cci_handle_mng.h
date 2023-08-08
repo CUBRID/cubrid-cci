@@ -262,6 +262,7 @@ typedef struct
   char log_trace_network;
   char useSSL;
   char __gateway;
+  char oracle_style_number_return;
 
   /* to check timeout */
   struct timeval start_time;	/* function start time to check timeout */
@@ -288,7 +289,8 @@ typedef struct
  ************************************************************************/
 
 extern void hm_con_handle_table_init (void);
-extern T_CON_HANDLE *hm_con_handle_alloc (char *ip_str, int port, char *db_name, char *db_user, char *db_passwd, bool useSSL);
+extern T_CON_HANDLE *hm_con_handle_alloc (char *ip_str, int port, char *db_name, char *db_user, char *db_passwd,
+					  bool useSSL);
 extern int hm_req_handle_alloc (T_CON_HANDLE * connection, T_REQ_HANDLE ** statement);
 extern void hm_req_handle_free (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle);
 extern void hm_req_handle_free_all (T_CON_HANDLE * con_handle);

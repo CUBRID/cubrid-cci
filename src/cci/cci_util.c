@@ -52,6 +52,7 @@
 #endif
 #include <sys/types.h>
 #include <regex>
+#include  <math.h>
 
 /************************************************************************
  * OTHER IMPORTED HEADER FILES						*
@@ -66,6 +67,8 @@
 /************************************************************************
  * PRIVATE DEFINITIONS							*
  ************************************************************************/
+#define MAX_DOUBLE_STRING            (512)
+#define MAX_FLOAT_STRING             (128)
 
 /************************************************************************
  * PRIVATE TYPE DEFINITIONS						*
@@ -770,6 +773,82 @@ void
 ut_double_to_str (double value, char *str, int size)
 {
   snprintf (str, size, "%.16f", value);
+}
+
+void
+ut_double_to_str_with_remove_trailingzeros (double value, char *str, int size)
+{
+  char double_str[MAX_DOUBLE_STRING];
+  char return_str[MAX_DOUBLE_STRING] = { '-', '0', '.', '\0', };
+  int exp_num, offset, p;
+
+  char *dot, *exp, *sp = return_str + 1;
+
+  snprintf (double_str, sizeof (double_str), "%.16g", fabs (value));
+  dot = strchr (double_str, '.');
+  exp = strchr (double_str, 'e');
+
+  if (!exp)
+    {
+      snprintf (str, size, "%s%s", (value < 0) ? "-" : "", double_str);
+      return;
+    }
+
+  exp_num = atoi (exp + 1);
+
+  if (exp_num > 0)
+    {
+      memcpy (sp, double_str, offset = (int) (dot - double_str));
+      memcpy (sp + offset, dot + 1, p = (int) (exp - dot) - 1);
+      memset (sp + offset + p, '0', exp_num - (int) (exp - dot) + 1);
+    }
+  else
+    {
+      exp_num = -exp_num;
+      memset (sp + 2, '0', offset = exp_num - 1);
+      memcpy (sp + 2 + offset, double_str, p = (int) (dot - double_str));
+      memcpy (sp + 2 + offset + p, dot + 1, (int) (exp - dot) - 1);
+    }
+
+  (value < 0) ? strncpy (str, return_str, size) : strncpy (str, return_str + 1, size);
+}
+
+void
+ut_float_to_str_with_remove_trailingzeros (float value, char *str, int size)
+{
+  char float_str[MAX_FLOAT_STRING];
+  char return_str[MAX_FLOAT_STRING] = { '-', '0', '.', '\0', };
+  int exp_num, offset, p;
+
+  char *dot, *exp, *sp = return_str + 1;
+
+  snprintf (float_str, sizeof (float_str), "%g", fabsf (value));
+  dot = strchr (float_str, '.');
+  exp = strchr (float_str, 'e');
+
+  if (!exp)
+    {
+      snprintf (str, size, "%s%s", (value < 0) ? "-" : "", float_str);
+      return;
+    }
+
+  exp_num = atoi (exp + 1);
+
+  if (exp_num > 0)
+    {
+      memcpy (sp, float_str, offset = (int) (dot - float_str));
+      memcpy (sp + offset, dot + 1, p = (int) (exp - dot) - 1);
+      memset (sp + offset + p, '0', exp_num - (int) (exp - dot) + 1);
+    }
+  else
+    {
+      exp_num = -exp_num;
+      memset (sp + 2, '0', offset = exp_num - 1);
+      memcpy (sp + 2 + offset, float_str, p = (int) (dot - float_str));
+      memcpy (sp + 2 + offset + p, dot + 1, (int) (exp - dot) - 1);
+    }
+
+  (value < 0) ? strncpy (str, return_str, size) : strncpy (str, return_str + 1, size);
 }
 
 void
