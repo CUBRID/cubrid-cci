@@ -798,16 +798,32 @@ ut_double_to_str_with_remove_trailingzeros (double value, char *str, int size)
 
   if (exp_num > 0)
     {
-      memcpy (sp, double_str, offset = (int) (dot - double_str));
-      memcpy (sp + offset, dot + 1, p = (int) (exp - dot) - 1);
-      memset (sp + offset + p, '0', exp_num - (int) (exp - dot) + 1);
+      if (dot)
+	{
+	  memcpy (sp, double_str, offset = (int) (dot - double_str));
+	  memcpy (sp + offset, dot + 1, p = (int) (exp - dot) - 1);
+	  memset (sp + offset + p, '0', exp_num - (int) (exp - dot) + 1);
+	}
+      else
+	{
+	  memcpy (sp, double_str, p = (int) (exp - double_str));
+	  memset (sp + p, '0', exp_num);
+	}
     }
   else
     {
       exp_num = -exp_num;
       memset (sp + 2, '0', offset = exp_num - 1);
-      memcpy (sp + 2 + offset, double_str, p = (int) (dot - double_str));
-      memcpy (sp + 2 + offset + p, dot + 1, (int) (exp - dot) - 1);
+
+      if (dot)
+	{
+	  memcpy (sp + 2 + offset, double_str, p = (int) (dot - double_str));
+	  memcpy (sp + 2 + offset + p, dot + 1, (int) (exp - dot) - 1);
+	}
+      else
+	{
+	  memcpy (sp + 2 + offset, double_str, (int) (exp - double_str));
+	}
     }
 
   (value < 0) ? strncpy (str, return_str, size) : strncpy (str, return_str + 1, size);
@@ -836,16 +852,32 @@ ut_float_to_str_with_remove_trailingzeros (float value, char *str, int size)
 
   if (exp_num > 0)
     {
-      memcpy (sp, float_str, offset = (int) (dot - float_str));
-      memcpy (sp + offset, dot + 1, p = (int) (exp - dot) - 1);
-      memset (sp + offset + p, '0', exp_num - (int) (exp - dot) + 1);
+      if (dot)
+	{
+	  memcpy (sp, float_str, offset = (int) (dot - float_str));
+	  memcpy (sp + offset, dot + 1, p = (int) (exp - dot) - 1);
+	  memset (sp + offset + p, '0', exp_num - (int) (exp - dot) + 1);
+	}
+      else
+	{
+	  memcpy (sp, float_str, p = (int) (exp - float_str));
+	  memset (sp + p, '0', exp_num);
+	}
     }
   else
     {
       exp_num = -exp_num;
       memset (sp + 2, '0', offset = exp_num - 1);
-      memcpy (sp + 2 + offset, float_str, p = (int) (dot - float_str));
-      memcpy (sp + 2 + offset + p, dot + 1, (int) (exp - dot) - 1);
+
+      if (dot)
+	{
+	  memcpy (sp + 2 + offset, float_str, p = (int) (dot - float_str));
+	  memcpy (sp + 2 + offset + p, dot + 1, (int) (exp - dot) - 1);
+	}
+      else
+	{
+	  memcpy (sp + 2 + offset, float_str, (int) (exp - float_str));
+	}
     }
 
   (value < 0) ? strncpy (str, return_str, size) : strncpy (str, return_str + 1, size);
