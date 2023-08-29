@@ -117,7 +117,7 @@ extern "C"
 /* For backward compatibility */
 #define BROKER_INFO_MAJOR_VERSION               (BROKER_INFO_PROTO_VERSION)
 #define BROKER_INFO_MINOR_VERSION               (BROKER_INFO_FUNCTION_FLAG)
-#define BROKER_INFO_PATCH_VERSION               (BROKER_INFO_RESERVED2)
+#define BROKER_INFO_PATCH_VERSION               (BROKER_INFO_SYSTEM_PARAM)
 #define BROKER_INFO_RESERVED                    (BROKER_INFO_RESERVED3)
 
 #define CAS_PID_SIZE                            4
@@ -132,6 +132,9 @@ extern "C"
 
 #define CAS_STATEMENT_POOLING_OFF		0
 #define CAS_STATEMENT_POOLING_ON		1
+
+/* BITMASK for System Parameter */
+#define MASK_ORACLE_COMPAT_NUMBER_BEHAVIOR      0x01    // oracle_compat_number_behavior
 
 #define SHARD_ID_INVALID 		(-1)
 #define SHARD_ID_UNSUPPORTED	(-2)
@@ -209,7 +212,9 @@ extern "C"
     PROTOCOL_V8 = 8,		/* JSON type */
     PROTOCOL_V9 = 9,		/* cas health check: get function status */
     PROTOCOL_V10 = 10,		/* Secure Broker/CAS using SSL */
-    CURRENT_PROTOCOL = PROTOCOL_V10
+    PROTOCOL_V11 = 11,		/* make out resultset */
+    PROTOCOL_V12 = 12,		/* Remove trailing zeros from double and float types */
+    CURRENT_PROTOCOL = PROTOCOL_V12
   };
   typedef enum t_cas_protocol T_CAS_PROTOCOL;
 
@@ -221,7 +226,7 @@ extern "C"
     BROKER_INFO_CCI_PCONNECT,
     BROKER_INFO_PROTO_VERSION,
     BROKER_INFO_FUNCTION_FLAG,
-    BROKER_INFO_RESERVED2,
+    BROKER_INFO_SYSTEM_PARAM,
     BROKER_INFO_RESERVED3
   };
   typedef enum t_broker_info_pos T_BROKER_INFO_POS;

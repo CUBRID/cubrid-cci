@@ -358,7 +358,6 @@ cci_conn_set_properties (T_CON_HANDLE * handle, char *properties)
      &handle->disconnect_on_query_timeout},
     {"useSSL", BOOL_PROPERTY, &handle->useSSL},
     {"__gateway", BOOL_PROPERTY, &handle->__gateway},
-    {"oracleStyleNumberReturn", BOOL_PROPERTY, &handle->oracle_style_number_return}
   };
   int error = CCI_ER_NO_ERROR;
 

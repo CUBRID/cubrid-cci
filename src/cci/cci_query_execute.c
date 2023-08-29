@@ -1687,6 +1687,8 @@ qe_get_data (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int col_no, i
   int data_size;
   int err_code;
   int num_cols;
+  T_BROKER_VERSION broker_ver;
+  bool is_oracle_style_number_return = false;
 
   if (req_handle->is_closed)
     {
@@ -1792,9 +1794,15 @@ qe_get_data (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int col_no, i
   switch (a_type)
     {
     case CCI_A_TYPE_STR:
+      broker_ver = hm_get_broker_version (con_handle);
+      if (hm_broker_understand_the_protocol (broker_ver, PROTOCOL_V12))
+	{
+	  is_oracle_style_number_return =
+	    con_handle->broker_info[BROKER_INFO_SYSTEM_PARAM] & MASK_ORACLE_COMPAT_NUMBER_BEHAVIOR;
+	}
       err_code =
 	qe_get_data_str (&(req_handle->conv_value_buffer), u_type, col_value_p, data_size, value, indicator,
-			 con_handle->oracle_style_number_return);
+			 is_oracle_style_number_return);
       break;
     case CCI_A_TYPE_BIGINT:
       err_code = qe_get_data_bigint (u_type, col_value_p, value);
