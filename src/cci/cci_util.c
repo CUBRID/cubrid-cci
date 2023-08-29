@@ -838,7 +838,7 @@ ut_float_to_str_with_remove_trailingzeros (float value, char *str, int size)
 
   char *dot, *exp, *sp = return_str + 1;
 
-  snprintf (float_str, sizeof (float_str), "%g", fabsf (value));
+  snprintf (float_str, sizeof (float_str), "%.7g", fabsf (value));
   dot = strchr (float_str, '.');
   exp = strchr (float_str, 'e');
 
