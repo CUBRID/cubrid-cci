@@ -1324,7 +1324,6 @@ init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_nam
   con_handle->ssl_handle.ctx = NULL;
   con_handle->useSSL = useSSL;
   con_handle->__gateway = false;
-  con_handle->oracle_style_number_return = false;
   con_handle->deferred_max_close_handle_count = DEFERRED_CLOSE_HANDLE_ALLOC_SIZE;
   con_handle->deferred_close_handle_list = (int *) MALLOC (sizeof (int) * con_handle->deferred_max_close_handle_count);
   con_handle->deferred_close_handle_count = 0;
