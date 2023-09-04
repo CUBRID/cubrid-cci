@@ -134,7 +134,7 @@ extern "C"
 #define CAS_STATEMENT_POOLING_ON		1
 
 /* BITMASK for System Parameter */
-#define MASK_ORACLE_COMPAT_NUMBER_BEHAVIOR      0x01    // oracle_compat_number_behavior
+#define MASK_ORACLE_COMPAT_NUMBER_BEHAVIOR      0x01	// oracle_compat_number_behavior
 
 #define SHARD_ID_INVALID 		(-1)
 #define SHARD_ID_UNSUPPORTED	(-2)
@@ -238,7 +238,10 @@ extern "C"
     CAS_DBMS_ORACLE = 3,
     CAS_PROXY_DBMS_CUBRID = 4,
     CAS_PROXY_DBMS_MYSQL = 5,
-    CAS_PROXY_DBMS_ORACLE = 6
+    CAS_PROXY_DBMS_ORACLE = 6,
+    CAS_CGW_DBMS_ORACLE = 7,
+    CAS_CGW_DBMS_MYSQL = 8,
+    CAS_CGW_DBMS_MARIADB = 9
   };
   typedef enum t_dbms_type T_DBMS_TYPE;
 #define IS_CONNECTED_TO_PROXY(type) \
