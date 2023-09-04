@@ -7332,8 +7332,8 @@ confirm_schema_type_info (T_REQ_HANDLE * req_handle, int col_no, T_CCI_U_TYPE u_
 #define SCHEMA_INFO_TYPE_COL_INDEX 2
 
   if (req_handle->handle_type == HANDLE_SCHEMA_INFO
-      && (req_handle->handle_sub_type == CCI_SCH_ATTRIBUTE || req_handle->handle_sub_type == CCI_SCH_CLASS_ATTRIBUTE)
-      && col_no == SCHEMA_INFO_TYPE_COL_INDEX)
+      && (req_handle->handle_sub_type == CCI_SCH_ATTRIBUTE || req_handle->handle_sub_type == CCI_SCH_CLASS_ATTRIBUTE
+	  || req_handle->handle_sub_type == CCI_SCH_ATTR_WITH_SYNONYM) && col_no == SCHEMA_INFO_TYPE_COL_INDEX)
     {
       unsigned short value, net_val;
       assert (u_type == CCI_U_TYPE_SHORT);
