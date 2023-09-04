@@ -134,7 +134,7 @@ extern "C"
 #define CAS_STATEMENT_POOLING_ON		1
 
 /* BITMASK for System Parameter */
-#define MASK_ORACLE_COMPAT_NUMBER_BEHAVIOR      0x01	// oracle_compat_number_behavior
+#define MASK_ORACLE_COMPAT_NUMBER_BEHAVIOR      0x01    // oracle_compat_number_behavior
 
 #define SHARD_ID_INVALID 		(-1)
 #define SHARD_ID_UNSUPPORTED	(-2)
