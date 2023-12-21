@@ -748,6 +748,12 @@ ut_str_to_oid (char *str, T_OBJECT * value)
     }
   value->volid = id;
 
+  /* Set virtual oid, "0|0|0", as an error, requested by ctshim */
+  if (value->pageid == 0 && value->slotid == 0 && value->volid == 0)
+    {
+      return CCI_ER_OBJECT;
+    }
+
   return 0;
 }
 
