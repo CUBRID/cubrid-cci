@@ -211,6 +211,13 @@ install(TARGETS cascci
   PUBLIC_HEADER DESTINATION ${CUBRID_CCIDIR}/include COMPONENT CCI
   )
 
+if(WITH_CCI AND UNIX)
+  file(CREATE_LINK "../cci/include/cas_cci.h" cas_cci.h SYMBOLIC)
+  install(FILES ${CMAKE_BINARY_DIR}/cas_cci.h DESTINATION ${CUBRID_INCLUDEDIR})
+  file(CREATE_LINK "../cci/lib/libcascci.so" libcascci.so SYMBOLIC)
+  install(FILES ${CMAKE_BINARY_DIR}/libcascci.so DESTINATION ${CUBRID_LIBDIR})
+endif(WITH_CCI AND UNIX)
+
 # install pdb files for debugging on windows
 if(WIN32)
   install(DIRECTORY
