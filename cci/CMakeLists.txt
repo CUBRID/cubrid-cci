@@ -145,6 +145,7 @@ endif(WIN32)
 add_library(cascci SHARED ${CASCCI_SOURCES})
 set_target_properties(cascci PROPERTIES SOVERSION "${CCI_MAJOR_VERSION}.${CCI_MINOR_VERSION}")
 set_target_properties(cascci PROPERTIES PUBLIC_HEADER "${CCI_DIR}/cas_cci.h;${CCI_DIR}/compat_dbtran_def.h;${CCI_DIR}/broker_cas_error.h")
+set_target_properties(cascci PROPERTIES PRIVATE_HEADER "${CCI_DIR}/cas_cci.h")
 target_include_directories(cascci PRIVATE ${EP_INCLUDES})
 target_link_libraries(cascci LINK_PRIVATE ${EP_LIBS} ${CMAKE_THREAD_LIBS_INIT})
 target_link_libraries(cascci ${CMAKE_DL_LIBS})
@@ -211,12 +212,19 @@ install(TARGETS cascci
   PUBLIC_HEADER DESTINATION ${CUBRID_CCIDIR}/include COMPONENT CCI
   )
 
-if(WITH_CCI AND UNIX)
-  file(CREATE_LINK "../cci/include/cas_cci.h" "${CMAKE_BINARY_DIR}/cas_cci.h" SYMBOLIC)
-  install(FILES ${CMAKE_BINARY_DIR}/cas_cci.h DESTINATION ${CUBRID_INCLUDEDIR})
-  file(CREATE_LINK "../cci/lib/libcascci.so" "${CMAKE_BINARY_DIR}/libcascci.so" SYMBOLIC)
-  install(FILES ${CMAKE_BINARY_DIR}/libcascci.so DESTINATION ${CUBRID_LIBDIR})
-endif(WITH_CCI AND UNIX)
+if(WITH_CCI)
+  if(WIN32)
+    install(TARGETS cascci
+      ARCHIVE DESTINATION ${CUBRID_LIBDIR}
+      PRIVATE_HEADER DESTINATION ${CUBRID_INCLUDEDIR}
+    )
+  else(WIN32)
+    file(CREATE_LINK "../cci/include/cas_cci.h" "${CMAKE_BINARY_DIR}/cas_cci.h" SYMBOLIC)
+    install(FILES ${CMAKE_BINARY_DIR}/cas_cci.h DESTINATION ${CUBRID_INCLUDEDIR})
+    file(CREATE_LINK "../cci/lib/libcascci.so" "${CMAKE_BINARY_DIR}/libcascci.so" SYMBOLIC)
+    install(FILES ${CMAKE_BINARY_DIR}/libcascci.so DESTINATION ${CUBRID_LIBDIR})
+  endif(WIN32)
+endif(WITH_CCI)
 
 # install pdb files for debugging on windows
 if(WIN32)
