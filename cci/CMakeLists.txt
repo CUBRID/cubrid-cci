@@ -212,6 +212,10 @@ install(TARGETS cascci
   PUBLIC_HEADER DESTINATION ${CUBRID_CCIDIR}/include COMPONENT CCI
   )
 
+macro(create_link file symlink)
+  install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${file} ${symlink})")
+endmacro(create_link)
+
 if(WITH_CCI)
   if(WIN32)
     install(TARGETS cascci
@@ -219,9 +223,9 @@ if(WITH_CCI)
       PRIVATE_HEADER DESTINATION ${CUBRID_INCLUDEDIR}
     )
   else(WIN32)
-    file(CREATE_LINK "../cci/include/cas_cci.h" "${CMAKE_BINARY_DIR}/cas_cci.h" SYMBOLIC)
+    create_link("../cci/include/cas_cci.h" ${CMAKE_BINARY_DIR}/cas_cci.h)
     install(FILES ${CMAKE_BINARY_DIR}/cas_cci.h DESTINATION ${CUBRID_INCLUDEDIR})
-    file(CREATE_LINK "../cci/lib/libcascci.so" "${CMAKE_BINARY_DIR}/libcascci.so" SYMBOLIC)
+    create_link("../cci/lib/libcascci.so" ${CMAKE_BINARY_DIR}/libcascci.so)
     install(FILES ${CMAKE_BINARY_DIR}/libcascci.so DESTINATION ${CUBRID_LIBDIR})
   endif(WIN32)
 endif(WITH_CCI)
