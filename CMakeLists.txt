@@ -16,7 +16,7 @@
 # 
 #
 
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.21)
 
 if(WITH_CCI)
 message(STATUS "======== WITH_CCI ==========")
@@ -506,6 +506,8 @@ list(APPEND EP_LIBS ${LIBOPENSSL_LIBS})
 # include subdirectories
 add_subdirectory(cci)
 add_subdirectory(tools)
+
+add_custom_target(libopenssl)
 
 # for packaging info
 if(UNIX)
