@@ -499,15 +499,14 @@ else(WITH_LIOPENSSL STREQUAL "BUNDLED")
     list(APPEND LIBOPENSSL_LIBS Crypt32 Ws2_32)
     set(LIBOPENSSL_INCLUDES ${WINDOWS_EXTERNAL_DIR}/openssl/include)
   endif(UNIX)
-endif()
+  add_custom_target(libopenssl)
+endif(WITH_LIBOPENSSL)
 list(APPEND EP_INCLUDES ${LIBOPENSSL_INCLUDES})
 list(APPEND EP_LIBS ${LIBOPENSSL_LIBS})
 
 # include subdirectories
 add_subdirectory(cci)
 add_subdirectory(tools)
-
-add_custom_target(libopenssl)
 
 # for packaging info
 if(UNIX)
