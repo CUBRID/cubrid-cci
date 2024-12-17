@@ -70,7 +70,7 @@ option(ENABLE_32BIT "Build for 32-bit banaries (on 64-bit platform)" OFF)
 
 # options for external libraries (BUNDLED, EXTERAL or SYSTEM)
 # openssl library sources URL
-set(WITH_LIBOPENSSL_URL "https://www.openssl.org/source/old/1.1.1/openssl-1.1.1f.tar.gz")
+set(WITH_LIBOPENSSL_URL "https://github.com/CUBRID/3rdparty/raw/develop/openssl/openssl-1.1.1f.tar.gz")
 set(WITH_EXTERNAL_PREFIX "EXTERNAL" CACHE STRING "External library prefix (default: EXTERNAL)")
 set(WITH_BUNDLED_PREFIX "BUNDLED" CACHE STRING "Bundled library prefix (default: BUNDLED)")
 set(WITH_SYSTEM_PREFIX "SYSTEM" CACHE STRING "System library prefix (default: SYSTEM)")
@@ -499,15 +499,14 @@ else(WITH_LIOPENSSL STREQUAL "BUNDLED")
     list(APPEND LIBOPENSSL_LIBS Crypt32 Ws2_32)
     set(LIBOPENSSL_INCLUDES ${WINDOWS_EXTERNAL_DIR}/openssl/include)
   endif(UNIX)
-endif()
+  add_custom_target(libopenssl)
+endif(WITH_LIBOPENSSL)
 list(APPEND EP_INCLUDES ${LIBOPENSSL_INCLUDES})
 list(APPEND EP_LIBS ${LIBOPENSSL_LIBS})
 
 # include subdirectories
 add_subdirectory(cci)
 add_subdirectory(tools)
-
-add_custom_target(libopenssl)
 
 # for packaging info
 if(UNIX)
