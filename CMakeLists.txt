@@ -16,7 +16,7 @@
 # 
 #
 
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.21)
 
 if(WITH_CCI)
 message(STATUS "======== WITH_CCI ==========")
@@ -500,7 +500,7 @@ else(WITH_LIOPENSSL STREQUAL "BUNDLED")
     set(LIBOPENSSL_INCLUDES ${WINDOWS_EXTERNAL_DIR}/openssl/include)
   endif(UNIX)
   add_custom_target(libopenssl)
-endif(WITH_LIBOPENSSL)
+endif(WITH_LIBOPENSSL STREQUAL "EXTERNAL")
 list(APPEND EP_INCLUDES ${LIBOPENSSL_INCLUDES})
 list(APPEND EP_LIBS ${LIBOPENSSL_LIBS})
 
