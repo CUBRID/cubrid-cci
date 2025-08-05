@@ -945,7 +945,7 @@ void
 ut_lob_to_str (T_LOB * lob, char *str, int size)
 {
 #if 0
-  sprintf (str, "%s:%s", (lob->type == CCI_U_TYPE_BLOB ? "BLOB" : (lob->type == CCI_U_TYPE_CLOB ? "CLOB" : "????")),
+  sprintf (str, "%s:%s", (lob->type == CCI_U_TYPE_BFILE ? "BFILE" : (lob->type == CCI_U_TYPE_CFILE ? "CFILE" : "????")),
 	   lob->handle + 16);
 #else
   strncpy (str, lob->handle + 16, size);

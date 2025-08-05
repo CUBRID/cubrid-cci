@@ -1730,8 +1730,8 @@ qe_get_data (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int col_no, i
   if (data_size <= 0)
     {
       *indicator = -1;
-      if (a_type == CCI_A_TYPE_STR || a_type == CCI_A_TYPE_SET || a_type == CCI_A_TYPE_BLOB
-	  || a_type == CCI_A_TYPE_CLOB)
+      if (a_type == CCI_A_TYPE_STR || a_type == CCI_A_TYPE_SET || a_type == CCI_A_TYPE_BFILE
+	  || a_type == CCI_A_TYPE_CFILE)
 	{
 	  *((void **) value) = NULL;
 	}
@@ -1746,8 +1746,8 @@ qe_get_data (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int col_no, i
       if (data_size <= NET_SIZE_BYTE)
 	{
 	  *indicator = -1;
-	  if (a_type == CCI_A_TYPE_STR || a_type == CCI_A_TYPE_SET || a_type == CCI_A_TYPE_BLOB
-	      || a_type == CCI_A_TYPE_CLOB)
+	  if (a_type == CCI_A_TYPE_STR || a_type == CCI_A_TYPE_SET || a_type == CCI_A_TYPE_BFILE
+	      || a_type == CCI_A_TYPE_CFILE)
 	    {
 	      *((void **) value) = NULL;
 	    }
@@ -1764,8 +1764,8 @@ qe_get_data (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int col_no, i
 	  if (data_size <= NET_SIZE_BYTE)
 	    {
 	      *indicator = -1;
-	      if (a_type == CCI_A_TYPE_STR || a_type == CCI_A_TYPE_SET || a_type == CCI_A_TYPE_BLOB
-		  || a_type == CCI_A_TYPE_CLOB)
+	      if (a_type == CCI_A_TYPE_STR || a_type == CCI_A_TYPE_SET || a_type == CCI_A_TYPE_BFILE
+		  || a_type == CCI_A_TYPE_CFILE)
 		{
 		  *((void **) value) = NULL;
 		}
@@ -1831,8 +1831,8 @@ qe_get_data (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int col_no, i
     case CCI_A_TYPE_SET:
       err_code = get_data_set (u_type, col_value_p, (T_SET **) value, data_size);
       break;
-    case CCI_A_TYPE_BLOB:
-    case CCI_A_TYPE_CLOB:
+    case CCI_A_TYPE_BFILE:
+    case CCI_A_TYPE_CFILE:
       err_code = qe_get_data_lob (u_type, col_value_p, data_size, value);
       break;
     case CCI_A_TYPE_REQ_HANDLE:
@@ -2969,8 +2969,8 @@ qe_execute_array (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, T_CCI_QU
 					     &cur_cell);
 		  }
 		  break;
-		case CCI_A_TYPE_BLOB:
-		case CCI_A_TYPE_CLOB:
+		case CCI_A_TYPE_BFILE:
+		case CCI_A_TYPE_CFILE:
 		  {
 		    T_LOB **value;
 		    value = (T_LOB **) req_handle->bind_value[idx].value;
@@ -3457,8 +3457,8 @@ qe_get_data_str (T_VALUE_BUF * conv_val_buf, T_CCI_U_TYPE u_type, char *col_valu
 	ut_oid_to_str (&data, (char *) conv_val_buf->data);
       }
       break;
-    case CCI_U_TYPE_BLOB:
-    case CCI_U_TYPE_CLOB:
+    case CCI_U_TYPE_BFILE:
+    case CCI_U_TYPE_CFILE:
       {
 	int err_code;
 	T_LOB *lob = NULL;
@@ -4017,7 +4017,7 @@ qe_get_data_lob (T_CCI_U_TYPE u_type, char *col_value_p, int col_val_size, void 
 
   assert (u_type >= CCI_U_TYPE_FIRST && u_type <= CCI_U_TYPE_LAST);
 
-  if (u_type != CCI_U_TYPE_BLOB && u_type != CCI_U_TYPE_CLOB)
+  if (u_type != CCI_U_TYPE_BFILE && u_type != CCI_U_TYPE_CFILE)
     {
       return CCI_ER_TYPE_CONVERSION;
     }
@@ -6567,12 +6567,12 @@ bind_value_conversion (T_CCI_A_TYPE a_type, T_CCI_U_TYPE u_type, char flag, void
 	  return CCI_ER_TYPE_CONVERSION;
 	}
     }
-  else if (a_type == CCI_A_TYPE_BLOB || a_type == CCI_A_TYPE_CLOB)
+  else if (a_type == CCI_A_TYPE_BFILE || a_type == CCI_A_TYPE_CFILE)
     {
       switch (u_type)
 	{
-	case CCI_U_TYPE_BLOB:
-	case CCI_U_TYPE_CLOB:
+	case CCI_U_TYPE_BFILE:
+	case CCI_U_TYPE_CFILE:
 	  {
 	    ALLOC_COPY_BIT (bind_value->value, (T_LOB *) value, sizeof (T_LOB));
 	    bind_value->size = sizeof (T_LOB);
@@ -6818,8 +6818,8 @@ bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void *value, in
 	  ADD_ARG_OBJECT (net_buf, value);
 	}
       break;
-    case CCI_U_TYPE_BLOB:
-    case CCI_U_TYPE_CLOB:
+    case CCI_U_TYPE_BFILE:
+    case CCI_U_TYPE_CFILE:
       if (value == NULL)
 	{
 	  ADD_ARG_BYTES (net_buf, NULL, 0);
