@@ -71,16 +71,16 @@ EXPORTS
 	cci_savepoint
 	cci_get_param_info
 	cci_param_info_free
-	cci_blob_new
-	cci_blob_size
-	cci_blob_write
-	cci_blob_read
-	cci_blob_free
-	cci_clob_new
-	cci_clob_size
-	cci_clob_write
-	cci_clob_read
-	cci_clob_free
+	cci_bfile_new
+	cci_bfile_size
+	cci_bfile_write
+	cci_bfile_read
+	cci_bfile_free
+	cci_cfile_new
+	cci_cfile_size
+	cci_cfile_write
+	cci_cfile_read
+	cci_cfile_free
 	cci_get_dbms_type
 	cci_register_out_param
 	cci_cancel
