@@ -354,8 +354,8 @@ typedef enum
   CCI_U_TYPE_RESULTSET = 20,
   CCI_U_TYPE_BIGINT = 21,
   CCI_U_TYPE_DATETIME = 22,
-  CCI_U_TYPE_BLOB = 23,
-  CCI_U_TYPE_CLOB = 24,
+  CCI_U_TYPE_BFILE = 23,
+  CCI_U_TYPE_CFILE = 24,
   CCI_U_TYPE_ENUM = 25,
   CCI_U_TYPE_USHORT = 26,
   CCI_U_TYPE_UINT = 27,
@@ -386,8 +386,8 @@ typedef enum
   CCI_A_TYPE_DATE,
   CCI_A_TYPE_SET,
   CCI_A_TYPE_BIGINT,
-  CCI_A_TYPE_BLOB,
-  CCI_A_TYPE_CLOB,
+  CCI_A_TYPE_BFILE,
+  CCI_A_TYPE_CFILE,
   CCI_A_TYPE_REQ_HANDLE,
   CCI_A_TYPE_UINT,
   CCI_A_TYPE_UBIGINT,
@@ -788,9 +788,9 @@ typedef struct
   int precision;
 } T_CCI_PARAM_INFO;
 
-typedef void *T_CCI_BLOB;
+typedef void *T_CCI_BFILE;
 
-typedef void *T_CCI_CLOB;
+typedef void *T_CCI_CFILE;
 
 typedef struct
 {
@@ -910,20 +910,20 @@ extern "C"
   extern int cci_get_param_info (int req_handle, T_CCI_PARAM_INFO ** param, T_CCI_ERROR * err_buf);
   extern int cci_param_info_free (T_CCI_PARAM_INFO * param);
 
-  extern int cci_blob_new (int con_h_id, T_CCI_BLOB * blob, T_CCI_ERROR * err_buf);
-  extern long long cci_blob_size (T_CCI_BLOB blob);
-  extern int cci_blob_write (int con_h_id, T_CCI_BLOB blob,
+  extern int cci_bfile_new (int con_h_id, T_CCI_BFILE * bfile, T_CCI_ERROR * err_buf);
+  extern long long cci_bfile_size (T_CCI_BFILE bfile);
+  extern int cci_bfile_write (int con_h_id, T_CCI_BFILE bfile,
 			     long long start_pos, int length, const char *buf, T_CCI_ERROR * err_buf);
-  extern int cci_blob_read (int con_h_id, T_CCI_BLOB blob,
+  extern int cci_bfile_read (int con_h_id, T_CCI_BFILE bfile,
 			    long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf);
-  extern int cci_blob_free (T_CCI_BLOB blob);
-  extern int cci_clob_new (int con_h_id, T_CCI_CLOB * clob, T_CCI_ERROR * err_buf);
-  extern long long cci_clob_size (T_CCI_CLOB clob);
-  extern int cci_clob_write (int con_h_id, T_CCI_CLOB clob,
+  extern int cci_bfile_free (T_CCI_BFILE bfile);
+  extern int cci_cfile_new (int con_h_id, T_CCI_CFILE * cfile, T_CCI_ERROR * err_buf);
+  extern long long cci_cfile_size (T_CCI_CFILE cfile);
+  extern int cci_cfile_write (int con_h_id, T_CCI_CFILE cfile,
 			     long long start_pos, int length, const char *buf, T_CCI_ERROR * err_buf);
-  extern int cci_clob_read (int con_h_id, T_CCI_CLOB clob,
+  extern int cci_cfile_read (int con_h_id, T_CCI_CFILE cfile,
 			    long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf);
-  extern int cci_clob_free (T_CCI_CLOB clob);
+  extern int cci_cfile_free (T_CCI_CFILE cfile);
   extern int cci_get_dbms_type (int con_h_id);
   extern int cci_register_out_param (int req_h_id, int index);
   extern int cci_register_out_param_ex (int req_h_id, int index, T_CCI_U_TYPE u_type);

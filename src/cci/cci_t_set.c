@@ -322,8 +322,8 @@ t_set_make (T_SET * set, char ele_type, int size, void *value, int *indicator)
 	case CCI_U_TYPE_USHORT:
 	case CCI_U_TYPE_UINT:
 	case CCI_U_TYPE_UBIGINT:
-	case CCI_U_TYPE_BLOB:
-	case CCI_U_TYPE_CLOB:
+	case CCI_U_TYPE_BFILE:
+	case CCI_U_TYPE_CFILE:
 	default:
 	  err_code = CCI_ER_TYPE_CONVERSION;
 	  goto set_make_error;

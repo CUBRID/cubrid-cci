@@ -3780,17 +3780,17 @@ cci_lob_new (int mapped_conn_id, void *lob, T_CCI_U_TYPE type, T_CCI_ERROR * err
       goto ret;
     }
 
-  if (type == CCI_U_TYPE_BLOB)
+  if (type == CCI_U_TYPE_BFILE)
     {
-      *(T_CCI_BLOB *) lob = (T_CCI_BLOB) lob_handle;
+      *(T_CCI_BFILE *) lob = (T_CCI_BFILE) lob_handle;
     }
-  else if (type == CCI_U_TYPE_CLOB)
+  else if (type == CCI_U_TYPE_CFILE)
     {
-      *(T_CCI_CLOB *) lob = (T_CCI_CLOB) lob_handle;
+      *(T_CCI_CFILE *) lob = (T_CCI_CFILE) lob_handle;
     }
   else
     {
-      *(T_CCI_CLOB *) lob = NULL;
+      *(T_CCI_CFILE *) lob = NULL;
     }
 
 ret:
@@ -3802,23 +3802,23 @@ ret:
 }
 
 int
-cci_blob_new (int mapped_conn_id, T_CCI_BLOB * blob, T_CCI_ERROR * err_buf)
+cci_bfile_new (int mapped_conn_id, T_CCI_BFILE * bfile, T_CCI_ERROR * err_buf)
 {
 #ifdef CCI_DEBUG
-  CCI_DEBUG_PRINT (print_debug_msg ("(%d)cci_blob_new", mapped_conn_id));
+  CCI_DEBUG_PRINT (print_debug_msg ("(%d)cci_bfile_new", mapped_conn_id));
 #endif
 
-  return cci_lob_new (mapped_conn_id, (void *) blob, CCI_U_TYPE_BLOB, err_buf);
+  return cci_lob_new (mapped_conn_id, (void *) bfile, CCI_U_TYPE_BFILE, err_buf);
 }
 
 int
-cci_clob_new (int mapped_conn_id, T_CCI_CLOB * clob, T_CCI_ERROR * err_buf)
+cci_cfile_new (int mapped_conn_id, T_CCI_CFILE * cfile, T_CCI_ERROR * err_buf)
 {
 #ifdef CCI_DEBUG
-  CCI_DEBUG_PRINT (print_debug_msg ("(%d)cci_clob_new", mapped_conn_id));
+  CCI_DEBUG_PRINT (print_debug_msg ("(%d)cci_cfile_new", mapped_conn_id));
 #endif
 
-  return cci_lob_new (mapped_conn_id, (void *) clob, CCI_U_TYPE_CLOB, err_buf);
+  return cci_lob_new (mapped_conn_id, (void *) cfile, CCI_U_TYPE_CFILE, err_buf);
 }
 
 static long long
@@ -3835,21 +3835,21 @@ cci_lob_size (void *lob)
 }
 
 long long
-cci_blob_size (T_CCI_BLOB blob)
+cci_bfile_size (T_CCI_BFILE bfile)
 {
 #ifdef CCI_DEBUG
-  CCI_DEBUG_PRINT (print_debug_msg ("cci_blob_size"));
+  CCI_DEBUG_PRINT (print_debug_msg ("cci_bfile_size"));
 #endif
-  return cci_lob_size (blob);
+  return cci_lob_size (bfile);
 }
 
 long long
-cci_clob_size (T_CCI_CLOB clob)
+cci_cfile_size (T_CCI_CFILE cfile)
 {
 #ifdef CCI_DEBUG
-  CCI_DEBUG_PRINT (print_debug_msg ("cci_clob_size"));
+  CCI_DEBUG_PRINT (print_debug_msg ("cci_cfile_size"));
 #endif
-  return cci_lob_size (clob);
+  return cci_lob_size (cfile);
 }
 
 static int
@@ -3921,27 +3921,27 @@ ret:
 }
 
 int
-cci_blob_write (int mapped_conn_id, T_CCI_BLOB blob, long long start_pos, int length, const char *buf,
+cci_bfile_write (int mapped_conn_id, T_CCI_BFILE bfile, long long start_pos, int length, const char *buf,
 		T_CCI_ERROR * err_buf)
 {
 #ifdef CCI_DEBUG
   CCI_DEBUG_PRINT (print_debug_msg
-		   ("(%d)cci_blob_write: lob %p pos %d len %d", mapped_conn_id, blob, start_pos, length));
+		   ("(%d)cci_bfile_write: lob %p pos %d len %d", mapped_conn_id, bfile, start_pos, length));
 #endif
 
-  return cci_lob_write (mapped_conn_id, blob, start_pos, length, buf, err_buf);
+  return cci_lob_write (mapped_conn_id, bfile, start_pos, length, buf, err_buf);
 }
 
 int
-cci_clob_write (int mapped_conn_id, T_CCI_CLOB clob, long long start_pos, int length, const char *buf,
+cci_cfile_write (int mapped_conn_id, T_CCI_CFILE cfile, long long start_pos, int length, const char *buf,
 		T_CCI_ERROR * err_buf)
 {
 #ifdef CCI_DEBUG
   CCI_DEBUG_PRINT (print_debug_msg
-		   ("(%d)cci_clob_write: lob %p pos %d len %d", mapped_conn_id, clob, start_pos, length));
+		   ("(%d)cci_cfile_write: lob %p pos %d len %d", mapped_conn_id, cfile, start_pos, length));
 #endif
 
-  return cci_lob_write (mapped_conn_id, clob, start_pos, length, buf, err_buf);
+  return cci_lob_write (mapped_conn_id, cfile, start_pos, length, buf, err_buf);
 }
 
 static int
@@ -4022,26 +4022,26 @@ ret:
 
 
 int
-cci_blob_read (int mapped_conn_id, T_CCI_BLOB blob, long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf)
+cci_bfile_read (int mapped_conn_id, T_CCI_BFILE bfile, long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf)
 {
 #ifdef CCI_DEBUG
   CCI_DEBUG_PRINT (print_debug_msg
-		   ("(%d)cci_blob_read: lob %p pos %d len %d", mapped_conn_id, blob, start_pos, length));
+		   ("(%d)cci_bfile_read: lob %p pos %d len %d", mapped_conn_id, bfile, start_pos, length));
 #endif
 
-  return cci_lob_read (mapped_conn_id, blob, start_pos, length, buf, err_buf);
+  return cci_lob_read (mapped_conn_id, bfile, start_pos, length, buf, err_buf);
 }
 
 
 int
-cci_clob_read (int mapped_conn_id, T_CCI_CLOB clob, long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf)
+cci_cfile_read (int mapped_conn_id, T_CCI_CFILE cfile, long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf)
 {
 #ifdef CCI_DEBUG
   CCI_DEBUG_PRINT (print_debug_msg
-		   ("(%d)cci_clob_read: lob %p pos %d len %d", mapped_conn_id, clob, start_pos, length));
+		   ("(%d)cci_cfile_read: lob %p pos %d len %d", mapped_conn_id, cfile, start_pos, length));
 #endif
 
-  return cci_lob_read (mapped_conn_id, clob, start_pos, length, buf, err_buf);
+  return cci_lob_read (mapped_conn_id, cfile, start_pos, length, buf, err_buf);
 }
 
 
@@ -4063,16 +4063,16 @@ cci_lob_free (void *lob)
 
 
 int
-cci_blob_free (T_CCI_BLOB blob)
+cci_bfile_free (T_CCI_BFILE bfile)
 {
-  return cci_lob_free (blob);
+  return cci_lob_free (bfile);
 }
 
 
 int
-cci_clob_free (T_CCI_CLOB clob)
+cci_cfile_free (T_CCI_CFILE cfile)
 {
-  return cci_lob_free (clob);
+  return cci_lob_free (cfile);
 }
 
 
@@ -5104,10 +5104,10 @@ dbg_a_type_str (T_CCI_A_TYPE atype)
       return "CCI_A_TYPE_DATE";
     case CCI_A_TYPE_SET:
       return "CCI_A_TYPE_SET";
-    case CCI_A_TYPE_BLOB:
-      return "CCI_A_TYPE_BLOB";
-    case CCI_A_TYPE_CLOB:
-      return "CCI_A_TYPE_CLOB";
+    case CCI_A_TYPE_BFILE:
+      return "CCI_A_TYPE_BFILE";
+    case CCI_A_TYPE_CFILE:
+      return "CCI_A_TYPE_CFILE";
     case CCI_A_TYPE_REQ_HANDLE:
       return "CCI_A_TYPE_REQ_HANDLE";
     case CCI_A_TYPE_UINT:
@@ -5176,10 +5176,10 @@ dbg_u_type_str (T_CCI_U_TYPE utype)
       return "CCI_U_TYPE_OBJECT";
     case CCI_U_TYPE_RESULTSET:
       return "CCI_U_TYPE_RESULTSET";
-    case CCI_U_TYPE_BLOB:
-      return "CCI_U_TYPE_BLOB";
-    case CCI_U_TYPE_CLOB:
-      return "CCI_U_TYPE_CLOB";
+    case CCI_U_TYPE_BFILE:
+      return "CCI_U_TYPE_BFILE";
+    case CCI_U_TYPE_CFILE:
+      return "CCI_U_TYPE_CFILE";
     case CCI_U_TYPE_USHORT:
       return "CCI_U_TYPE_USHORT";
     case CCI_U_TYPE_UINT:
