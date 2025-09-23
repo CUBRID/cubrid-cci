@@ -4114,6 +4114,7 @@ cci_xa_prepare (int mapped_conn_id, XID * xid, T_CCI_ERROR * err_buf)
 
   set_error_buffer (&(con_handle->err_buf), error, NULL);
   get_last_error (con_handle, err_buf);
+  con_handle->used = false;
 
   return error;
 }
@@ -4155,6 +4156,7 @@ cci_xa_recover (int mapped_conn_id, XID * xid, int num_xid, T_CCI_ERROR * err_bu
 
   set_error_buffer (&(con_handle->err_buf), error, NULL);
   get_last_error (con_handle, err_buf);
+  con_handle->used = false;
 
   return error;
 }
@@ -4196,6 +4198,7 @@ cci_xa_end_tran (int mapped_conn_id, XID * xid, char type, T_CCI_ERROR * err_buf
 
   set_error_buffer (&(con_handle->err_buf), error, NULL);
   get_last_error (con_handle, err_buf);
+  con_handle->used = false;
 
   return error;
 }
