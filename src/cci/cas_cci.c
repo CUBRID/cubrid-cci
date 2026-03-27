@@ -5114,6 +5114,8 @@ dbg_a_type_str (T_CCI_A_TYPE atype)
       return "CCI_A_TYPE_UINT";
     case CCI_A_TYPE_UBIGINT:
       return "CCI_A_TYPE_UBIGINT";
+    case CCI_A_TYPE_VECTOR:
+      return "CCI_A_TYPE_VECTOR";
     default:
       return "***";
     }
@@ -5188,6 +5190,8 @@ dbg_u_type_str (T_CCI_U_TYPE utype)
       return "CCI_U_TYPE_UBIGINT";
     case CCI_U_TYPE_JSON:
       return "CCI_U_TYPE_JSON";
+    case CCI_U_TYPE_VECTOR:
+      return "CCI_U_TYPE_VECTOR";
     default:
       return "***";
     }

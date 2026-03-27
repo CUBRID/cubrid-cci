@@ -3393,6 +3393,56 @@ qe_get_data_str (T_VALUE_BUF * conv_val_buf, T_CCI_U_TYPE u_type, char *col_valu
 	  }
       }
       break;
+    case CCI_U_TYPE_VECTOR:
+      {
+	int dim = 0;
+	int i;
+	int pos = 0;
+	int estimated_size;
+	char *buf_p;
+
+	if (col_val_size < NET_SIZE_INT)
+	  {
+	    return CCI_ER_TYPE_CONVERSION;
+	  }
+
+	NET_STR_TO_INT (dim, col_value_p);
+	if (dim < 0 || col_val_size != NET_SIZE_INT + (dim * NET_SIZE_FLOAT))
+	  {
+	    return CCI_ER_TYPE_CONVERSION;
+	  }
+
+	estimated_size = 2 + (dim * 32) + (dim > 0 ? dim - 1 : 0) + 1;
+	if (hm_conv_value_buf_alloc (conv_val_buf, estimated_size) < 0)
+	  {
+	    return CCI_ER_NO_MORE_MEMORY;
+	  }
+
+	buf_p = (char *) conv_val_buf->data;
+	buf_p[pos++] = '[';
+	for (i = 0; i < dim; i++)
+	  {
+	    float data = .0f;
+	    int written;
+
+	    NET_STR_TO_FLOAT (data, col_value_p + NET_SIZE_INT + (i * NET_SIZE_FLOAT));
+
+	    if (i > 0)
+	      {
+		buf_p[pos++] = ',';
+	      }
+
+	    written = snprintf (buf_p + pos, estimated_size - pos, "%.9g", data);
+	    if (written < 0 || written >= estimated_size - pos)
+	      {
+		return CCI_ER_NO_MORE_MEMORY;
+	      }
+	    pos += written;
+	  }
+	buf_p[pos++] = ']';
+	buf_p[pos] = '\0';
+      }
+      break;
     case CCI_U_TYPE_DATE:
     case CCI_U_TYPE_TIME:
     case CCI_U_TYPE_TIMESTAMP:
@@ -6525,6 +6575,50 @@ bind_value_conversion (T_CCI_A_TYPE a_type, T_CCI_U_TYPE u_type, char flag, void
 	  return CCI_ER_TYPE_CONVERSION;
 	}
     }
+  else if (a_type == CCI_A_TYPE_VECTOR)
+    {
+      switch (u_type)
+	{
+	case CCI_U_TYPE_VECTOR:
+	  {
+	    T_CCI_VECTOR_FLOAT *vector_value = (T_CCI_VECTOR_FLOAT *) value;
+	    int payload_size;
+	    char *payload;
+	    int i;
+
+	    if (vector_value == NULL || vector_value->dim < 0
+		|| (vector_value->dim > 0 && vector_value->float_array == NULL))
+	      {
+		return CCI_ER_TYPE_CONVERSION;
+	      }
+
+	    payload_size = NET_SIZE_INT + (vector_value->dim * NET_SIZE_FLOAT);
+	    payload = (char *) MALLOC (payload_size);
+	    if (payload == NULL)
+	      {
+		return CCI_ER_NO_MORE_MEMORY;
+	      }
+
+	    {
+	      int net_dim = htonl (vector_value->dim);
+	      memcpy (payload, &net_dim, NET_SIZE_INT);
+	    }
+
+	    for (i = 0; i < vector_value->dim; i++)
+	      {
+		float net_float = htonf (vector_value->float_array[i]);
+		memcpy (payload + NET_SIZE_INT + (i * NET_SIZE_FLOAT), &net_float, NET_SIZE_FLOAT);
+	      }
+
+	    bind_value->value = payload;
+	    bind_value->size = payload_size;
+	    bind_value->flag = BIND_PTR_DYNAMIC;
+	  }
+	  break;
+	default:
+	  return CCI_ER_TYPE_CONVERSION;
+	}
+    }
   else if (a_type == CCI_A_TYPE_DATE)
     {
       switch (u_type)
@@ -6634,6 +6728,8 @@ bind_value_conversion (T_CCI_A_TYPE a_type, T_CCI_U_TYPE u_type, char flag, void
     case CCI_U_TYPE_DATETIMELTZ:
       bind_value->size = NET_SIZE_DATETIME + NET_SIZE_TZ (bind_value->value);
       break;
+    case CCI_U_TYPE_VECTOR:
+      break;
     default:
       break;
     }
@@ -6691,6 +6787,7 @@ bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void *value, in
     case CCI_U_TYPE_SET:
     case CCI_U_TYPE_MULTISET:
     case CCI_U_TYPE_SEQUENCE:
+    case CCI_U_TYPE_VECTOR:
       if (value == NULL)
 	{
 	  ADD_ARG_BYTES (net_buf, NULL, 0);

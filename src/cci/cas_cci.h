@@ -318,6 +318,12 @@ typedef struct
 
 typedef struct
 {
+  int dim;
+  float *float_array;
+} T_CCI_VECTOR_FLOAT;
+
+typedef struct
+{
   int result_count;
   int stmt_type;
   int err_no;
@@ -368,7 +374,8 @@ typedef enum
   CCI_U_TYPE_TIMETZ = 33,	/* internal use only - RESERVED */
   /* end of disabled types */
   CCI_U_TYPE_JSON = 34,
-  CCI_U_TYPE_LAST = CCI_U_TYPE_JSON
+  CCI_U_TYPE_VECTOR = 41,
+  CCI_U_TYPE_LAST = CCI_U_TYPE_VECTOR
 } T_CCI_U_TYPE;
 
 typedef unsigned char T_CCI_U_EXT_TYPE;
@@ -392,7 +399,8 @@ typedef enum
   CCI_A_TYPE_UINT,
   CCI_A_TYPE_UBIGINT,
   CCI_A_TYPE_DATE_TZ,
-  CCI_A_TYPE_LAST = CCI_A_TYPE_DATE_TZ,
+  CCI_A_TYPE_VECTOR,
+  CCI_A_TYPE_LAST = CCI_A_TYPE_VECTOR,
 
   CCI_A_TYTP_LAST = CCI_A_TYPE_LAST	/* typo but backward compatibility */
 } T_CCI_A_TYPE;
