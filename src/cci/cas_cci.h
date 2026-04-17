@@ -980,6 +980,9 @@ extern "C"
   extern int cci_is_shard (int con_h_id, T_CCI_ERROR * err_buf);
   extern int cci_get_cas_info (int mapped_conn_id, char *info_buf, int buf_length, T_CCI_ERROR * err_buf);
 
+  extern int cci_copy_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf);
+  extern int cci_copy_end (int mapped_conn_id, T_CCI_ERROR * err_buf);
+
 #ifdef __cplusplus
 }
 #endif
