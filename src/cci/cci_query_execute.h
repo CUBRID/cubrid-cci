@@ -497,9 +497,6 @@ extern int qe_lob_write (T_CON_HANDLE * con_handle, T_LOB * lob, INT64 start_pos
 extern int qe_lob_read (T_CON_HANDLE * con_handle, T_LOB * lob, INT64 start_pos, int length, char *buf,
 			T_CCI_ERROR * err_buf);
 
-extern int qe_copy_send_data (T_CON_HANDLE * con_handle, const char *data, int data_len, T_CCI_ERROR * err_buf);
-extern int qe_copy_end (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf);
-
 extern int qe_get_shard_info (T_CON_HANDLE * con_handle, T_CCI_SHARD_INFO ** shard_info, T_CCI_ERROR * err_buf);
 extern int qe_shard_info_free (T_CCI_SHARD_INFO * shard_info);
 extern int qe_is_shard (T_CON_HANDLE * con_handle);
