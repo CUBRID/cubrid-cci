@@ -6682,3 +6682,56 @@ cci_get_cas_info (int mapped_conn_id, char *info_buf, int buf_length, T_CCI_ERRO
 
   return error;
 }
+
+int
+cci_copy_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  int error = CCI_ER_NO_ERROR;
+
+  reset_error_buffer (err_buf);
+  if (data == NULL || data_len <= 0)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&(con_handle->err_buf));
+
+  error = qe_copy_send_data (con_handle, data, data_len, &(con_handle->err_buf));
+
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+
+  return error;
+}
+
+int
+cci_copy_end (int mapped_conn_id, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  int error = CCI_ER_NO_ERROR;
+
+  reset_error_buffer (err_buf);
+
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&(con_handle->err_buf));
+
+  error = qe_copy_end (con_handle, &(con_handle->err_buf));
+
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+
+  return error;
+}
