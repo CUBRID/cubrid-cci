@@ -7466,6 +7466,7 @@ qe_stream_end (T_CON_HANDLE * con_handle, INT64 * result, T_CCI_ERROR * err_buf)
       char *ptr = result_msg;
       int response_code;
       NET_STR_TO_INT (response_code, ptr);
+      ptr += NET_SIZE_INT;
       NET_STR_TO_INT64 (*result, ptr);
       err_code = response_code;
     }
