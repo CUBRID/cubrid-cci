@@ -6680,6 +6680,67 @@ cci_get_cas_info (int mapped_conn_id, char *info_buf, int buf_length, T_CCI_ERRO
   return error;
 }
 
+static void
+cci_stream_pack_int64 (char *ptr, unsigned long long value)
+{
+  int i;
+  for (i = 7; i >= 0; i--)
+    {
+      ptr[i] = (char) (value & 0xff);
+      value >>= 8;
+    }
+}
+
+int
+cci_stream_init_internal_lob (int mapped_conn_id, T_CCI_U_TYPE lob_type, long long data_length,
+                              long long logical_length, T_CCI_ERROR * err_buf)
+{
+  char config[20];
+  int stream_type;
+
+  if ((lob_type != CCI_U_TYPE_BLOB && lob_type != CCI_U_TYPE_CLOB) || data_length < 0 || logical_length < 0)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+  stream_type = (lob_type == CCI_U_TYPE_BLOB) ? 0 : 1;
+  config[0] = config[1] = config[2] = 0;
+  config[3] = (char) stream_type;
+  cci_stream_pack_int64 (config + 4, (unsigned long long) data_length);
+  cci_stream_pack_int64 (config + 12, (unsigned long long) logical_length);
+  return cci_stream_init (mapped_conn_id, 1, config, sizeof (config), err_buf);
+}
+
+int
+cci_bind_internal_lob_upload (int mapped_stmt_id, int index, T_CCI_U_TYPE lob_type, long long token,
+                              long long data_length, long long logical_length)
+{
+  char marker[160];
+  T_CCI_U_TYPE upload_type;
+  char type_char;
+  int marker_length;
+
+  if ((lob_type != CCI_U_TYPE_BLOB && lob_type != CCI_U_TYPE_CLOB) || token <= 0 || data_length < 0
+      || logical_length < 0)
+    {
+      return CCI_ER_INVALID_ARGS;
+    }
+  type_char = (lob_type == CCI_U_TYPE_BLOB) ? 'B' : 'C';
+  upload_type = (lob_type == CCI_U_TYPE_BLOB) ? CCI_U_TYPE_INTERNAL_BLOB_UPLOAD : CCI_U_TYPE_INTERNAL_CLOB_UPLOAD;
+  marker_length = snprintf (marker, sizeof (marker), "@internal_lob_upload:%c:%lld:%lld:%lld", type_char, token,
+                            data_length, logical_length);
+  if (marker_length <= 0 || marker_length >= (int) sizeof (marker))
+    {
+      return CCI_ER_INVALID_ARGS;
+    }
+  {
+    T_CCI_BIT marker_value;
+    marker_value.size = marker_length;
+    marker_value.buf = marker;
+    return cci_bind_param (mapped_stmt_id, index, CCI_A_TYPE_BIT, &marker_value, upload_type, 0);
+  }
+}
+
 int
 cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int config_len, T_CCI_ERROR * err_buf)
 {

@@ -370,7 +370,9 @@ typedef enum
   CCI_U_TYPE_TIMETZ = 35,	/* internal use only - RESERVED */
   /* end of disabled types */
   CCI_U_TYPE_JSON = 36,
-  CCI_U_TYPE_LAST = CCI_U_TYPE_JSON
+  CCI_U_TYPE_INTERNAL_BLOB_UPLOAD = 37,
+  CCI_U_TYPE_INTERNAL_CLOB_UPLOAD = 38,
+  CCI_U_TYPE_LAST = CCI_U_TYPE_INTERNAL_CLOB_UPLOAD
 } T_CCI_U_TYPE;
 
 typedef unsigned char T_CCI_U_EXT_TYPE;
@@ -984,10 +986,14 @@ extern "C"
 
   extern int cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int config_len,
 			      T_CCI_ERROR * err_buf);
+  extern int cci_stream_init_internal_lob (int mapped_conn_id, T_CCI_U_TYPE lob_type, long long data_length,
+					   long long logical_length, T_CCI_ERROR * err_buf);
   extern int cci_stream_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf);
   extern int cci_stream_end_result (int mapped_conn_id, long long *result, T_CCI_ERROR * err_buf);
   extern int cci_stream_end (int mapped_conn_id, T_CCI_ERROR * err_buf);
   extern int cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf);
+  extern int cci_bind_internal_lob_upload (int mapped_stmt_id, int index, T_CCI_U_TYPE lob_type,
+					  long long token, long long data_length, long long logical_length);
 
   /* Back-compat aliases: COPY was the first consumer of the stream transport. */
   extern int cci_copy_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf);

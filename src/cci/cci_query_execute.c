@@ -6483,6 +6483,8 @@ bind_value_conversion (T_CCI_A_TYPE a_type, T_CCI_U_TYPE u_type, char flag, void
 	{
 	case CCI_U_TYPE_BIT:
 	case CCI_U_TYPE_VARBIT:
+	case CCI_U_TYPE_INTERNAL_BLOB_UPLOAD:
+	case CCI_U_TYPE_INTERNAL_CLOB_UPLOAD:
 	  {
 	    T_CCI_BIT *bit_value = (T_CCI_BIT *) value;
 
