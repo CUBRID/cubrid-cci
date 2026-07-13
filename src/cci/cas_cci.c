@@ -34,6 +34,7 @@
 #include <string.h>
 #include <time.h>
 #include <assert.h>
+#include <limits.h>
 #include <sys/timeb.h>
 #include <stdarg.h>
 
@@ -6680,6 +6681,31 @@ cci_get_cas_info (int mapped_conn_id, char *info_buf, int buf_length, T_CCI_ERRO
 }
 
 int
+cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int config_len, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  int error;
+
+  reset_error_buffer (err_buf);
+  if (stream_kind < 0 || config_len < 0 || (config_len > 0 && config == NULL))
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&con_handle->err_buf);
+  error = qe_stream_init (con_handle, stream_kind, config, config_len, &con_handle->err_buf);
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+  return error;
+}
+
+int
 cci_stream_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf)
 {
   T_CON_HANDLE *con_handle = NULL;
@@ -6691,44 +6717,82 @@ cci_stream_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_
       set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
       return CCI_ER_INVALID_ARGS;
     }
-
   error = hm_get_connection (mapped_conn_id, &con_handle);
   if (error != CCI_ER_NO_ERROR)
     {
       set_error_buffer (err_buf, error, NULL);
       return error;
     }
-  reset_error_buffer (&(con_handle->err_buf));
-
-  error = qe_stream_send_data (con_handle, data, data_len, &(con_handle->err_buf));
-
+  reset_error_buffer (&con_handle->err_buf);
+  error = qe_stream_send_data (con_handle, data, data_len, &con_handle->err_buf);
   get_last_error (con_handle, err_buf);
   con_handle->used = false;
+  return error;
+}
 
+int
+cci_stream_end_result (int mapped_conn_id, long long *result, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  INT64 stream_result = 0;
+  int error;
+
+  reset_error_buffer (err_buf);
+  if (result == NULL)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&con_handle->err_buf);
+  error = qe_stream_end (con_handle, &stream_result, &con_handle->err_buf);
+  if (error == CCI_ER_NO_ERROR)
+    {
+      *result = (long long) stream_result;
+    }
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
   return error;
 }
 
 int
 cci_stream_end (int mapped_conn_id, T_CCI_ERROR * err_buf)
 {
+  long long result = 0;
+  int error = cci_stream_end_result (mapped_conn_id, &result, err_buf);
+  if (error < 0)
+    {
+      return error;
+    }
+  if (result > INT_MAX)
+    {
+      return INT_MAX;
+    }
+  return (int) result;
+}
+
+int
+cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf)
+{
   T_CON_HANDLE *con_handle = NULL;
-  int error = CCI_ER_NO_ERROR;
+  int error;
 
   reset_error_buffer (err_buf);
-
   error = hm_get_connection (mapped_conn_id, &con_handle);
   if (error != CCI_ER_NO_ERROR)
     {
       set_error_buffer (err_buf, error, NULL);
       return error;
     }
-  reset_error_buffer (&(con_handle->err_buf));
-
-  error = qe_stream_end (con_handle, &(con_handle->err_buf));
-
+  reset_error_buffer (&con_handle->err_buf);
+  error = qe_stream_abort (con_handle, &con_handle->err_buf);
   get_last_error (con_handle, err_buf);
   con_handle->used = false;
-
   return error;
 }
 

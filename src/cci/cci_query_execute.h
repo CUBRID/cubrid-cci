@@ -497,8 +497,11 @@ extern int qe_lob_write (T_CON_HANDLE * con_handle, T_LOB * lob, INT64 start_pos
 extern int qe_lob_read (T_CON_HANDLE * con_handle, T_LOB * lob, INT64 start_pos, int length, char *buf,
 			T_CCI_ERROR * err_buf);
 
+extern int qe_stream_init (T_CON_HANDLE * con_handle, int stream_kind, const char *config, int config_len,
+			   T_CCI_ERROR * err_buf);
 extern int qe_stream_send_data (T_CON_HANDLE * con_handle, const char *data, int data_len, T_CCI_ERROR * err_buf);
-extern int qe_stream_end (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf);
+extern int qe_stream_end (T_CON_HANDLE * con_handle, INT64 * result, T_CCI_ERROR * err_buf);
+extern int qe_stream_abort (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf);
 
 extern int qe_get_shard_info (T_CON_HANDLE * con_handle, T_CCI_SHARD_INFO ** shard_info, T_CCI_ERROR * err_buf);
 extern int qe_shard_info_free (T_CCI_SHARD_INFO * shard_info);

@@ -982,8 +982,12 @@ extern "C"
   extern int cci_is_shard (int con_h_id, T_CCI_ERROR * err_buf);
   extern int cci_get_cas_info (int mapped_conn_id, char *info_buf, int buf_length, T_CCI_ERROR * err_buf);
 
+  extern int cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int config_len,
+			      T_CCI_ERROR * err_buf);
   extern int cci_stream_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf);
+  extern int cci_stream_end_result (int mapped_conn_id, long long *result, T_CCI_ERROR * err_buf);
   extern int cci_stream_end (int mapped_conn_id, T_CCI_ERROR * err_buf);
+  extern int cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf);
 
   /* Back-compat aliases: COPY was the first consumer of the stream transport. */
   extern int cci_copy_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf);
