@@ -24,7 +24,7 @@ rem
 rem Requirements
 rem - cmake
 rem - default VS2017 (for windows)
-rem - optional VS2015, VS2012 (for windows)
+rem - optional VS2015 (for windows)
 rem - Windows 2003 or later
 rem - git 1.7.6 or later
 
@@ -69,7 +69,6 @@ if /I "%~1" == "/debug"   set "BUILD_MODE=Debug"& set BUILD_TYPE=Debug& set OPTI
 if /I "%~1" == "/release" set "BUILD_MODE=Release"& set BUILD_TYPE=RelWithDebInfo& set OPTION_CHECK=true
 if /I "%~1" == "/vs2017"  set BUILD_GENERATOR="Visual Studio 15 2017"& set BUILD_GEN_VERSION=V141& set OPTION_CHECK=true
 if /I "%~1" == "/vs2015"  set BUILD_GENERATOR="Visual Studio 14 2015"& set BUILD_GEN_VERSION=V140& set OPTION_CHECK=true
-if /I "%~1" == "/vs2012"  set BUILD_GENERATOR="Visual Studio 11 2012"& set BUILD_GEN_VERSION=V110& set OPTION_CHECK=true
 if "%~1" == "/h"          GOTO :SHOW_USAGE
 if "%~1" == "/?"          GOTO :SHOW_USAGE
 if "%~1" == "/help"       GOTO :SHOW_USAGE
@@ -77,7 +76,7 @@ if NOT "%BUILD_OPTION:~0,1%" == "/" (
   set BUILD_ARGS=%BUILD_ARGS% %1
 ) else if %OPTION_CHECK%==false (
   echo not found option [%BUILD_OPTION%]
-  GOTO :SHOW_USAGE
+  GOTO :USAGE_ERROR
 )
 shift
 GOTO :CHECK_OPTION
@@ -95,12 +94,19 @@ set BUILD_LIST=%BUILD_LIST:ALL=BUILD CCI_PACKAGE%
 set BUILD_LIST=%BUILD_LIST:BUILD=CUBRID%
 
 for %%i IN (%BUILD_LIST%) DO (
+  if /I NOT "%%i" == "CUBRID" if /I NOT "%%i" == "CCI_PACKAGE" if /I NOT "%%i" == "TEST" if /I NOT "%%i" == "CLEAN" (
+    echo Unknown target [%%i].
+    GOTO :USAGE_ERROR
+  )
+)
+
+for %%i IN (%BUILD_LIST%) DO (
   echo.
   echo [%DATE% %TIME%] Entering target [%%i]
   call :BUILD_PREPARE
   if ERRORLEVEL 1 echo *** [%DATE% %TIME%] Preparing failed. & GOTO :EOF
   call :BUILD_%%i
-  if ERRORLEVEL 1 echo *** [%DATE% %TIME%] Failed target [%%i] & GOTO :SHOW_USAGE
+  if ERRORLEVEL 1 echo *** [%DATE% %TIME%] Failed target [%%i] & GOTO :BUILD_FAILED
   echo [%DATE% %TIME%] Leaving target [%%i]
   echo.
 )
@@ -121,6 +127,13 @@ if NOT "%DIST_PKGS%." == "." (
 echo.
 GOTO :EOF
 
+
+:USAGE_ERROR
+call :SHOW_USAGE
+exit /b 1
+
+:BUILD_FAILED
+exit /b 1
 
 :BUILD_PREPARE
 echo Checking for requirements...
@@ -148,18 +161,25 @@ if NOT "%EXTRA_VERSION%." == "." (
   for /f "tokens=1,* delims=-" %%a IN ("%EXTRA_VERSION%") DO set SERIAL_NUMBER=%%a
 ) else (
   if EXIST "%SOURCE_DIR%\.git" (
+    pushd "%SOURCE_DIR%"
     for /f "delims=" %%i in ('"%GIT_PATH%" rev-list --count --after %CCI_VERSION_START_DATE% HEAD %CCI_VERSION_SRC_LIST%') do set SERIAL_NUMBER=0000%%i
     for /f "delims=" %%i in ('"%GIT_PATH%" rev-parse HEAD') do set HASH_TAG=%%i
+    popd
   ) else (
     set EXTRA_VERSION=0000
     set SERIAL_NUMBER=0000
   )
+)
+if "%SERIAL_NUMBER%." == "." (
+  echo *** WARNING: could not read the build serial from git - using 0000.
+  set SERIAL_NUMBER=0000
 )
 set SERIAL_NUMBER=%SERIAL_NUMBER:~-4%
 
 if NOT "%HASH_TAG%." == "." set HASH_TAG=%HASH_TAG:~0,7%
 
 if NOT "%HASH_TAG%." == "." set EXTRA_VERSION=%SERIAL_NUMBER%-%HASH_TAG%
+if "%EXTRA_VERSION%." == "." set EXTRA_VERSION=%SERIAL_NUMBER%
 
 echo Build Version is [%VERSION% (%MAJOR_VERSION%.%MINOR_VERSION%.%PATCH_VERSION%.%EXTRA_VERSION%)]
 set VERSION=%MAJOR_VERSION%.%MINOR_VERSION%.%PATCH_VERSION%.%EXTRA_VERSION%
@@ -177,7 +197,7 @@ set BUILD_ROOT_PREFIX=%SOURCE_DIR%\win\output
 set BUILD_PREFIX=%BUILD_ROOT_PREFIX%\CUBRID_%BUILD_MODE%_%BUILD_TARGET%_%BUILD_GEN_VERSION%
 echo Build install directory is [%BUILD_PREFIX%].
 
-if "%DIST_DIR%." == "." set DIST_DIR=%BUILD_DIR%\output
+if "%DIST_DIR%." == "." set DIST_DIR=%BUILD_ROOT_PREFIX%
 call :ABSPATH "%DIST_DIR%" DIST_DIR
 echo Packages Output directory is [%DIST_DIR%].
 if NOT EXIST "%DIST_DIR%" md %DIST_DIR%
@@ -223,11 +243,23 @@ echo Package created. [%DIST_DIR%\%CUBRID_CCI_PACKAGE_NAME%.zip]
 set DIST_PKGS=%DIST_PKGS% %CUBRID_CCI_PACKAGE_NAME%.zip
 GOTO :EOF
 
+:BUILD_TEST
+echo Testing the driver in %BUILD_PREFIX% ...
+if NOT EXIST "%BUILD_PREFIX%\bin\cascci.dll" (
+  echo Nothing to test there - run [build.bat build] first.
+  exit /b 1
+)
+if "%BUILD_TARGET%" == "Win32" (set TEST_ARCH=x86) ELSE set TEST_ARCH=x64
+powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%test\run_test.ps1" -Prefix "%BUILD_PREFIX%" -Arch %TEST_ARCH%
+if ERRORLEVEL 1 (echo FAILD. & GOTO :EOF) ELSE echo OK.
+GOTO :EOF
+
 :ABSPATH
 set %2=%~f1
 GOTO :EOF
 
 :FINDEXEC
+set FOUNDINPATH=
 if EXIST %3 set %2=%~3
 if NOT EXIST %3 for %%X in (%1) do set FOUNDINPATH=%%~$PATH:X
 if defined FOUNDINPATH set %2=%FOUNDINPATH:"=%
@@ -260,19 +292,21 @@ GOTO :EOF
 @echo.  /32      or /64    Build 32bit or 64bit applications (default: 64)
 @echo.  /Release or /Debug Build with release or debug mode (default: Release)
 @echo.  /vs2017            Build with VS2017 (default: VS2017)
-@echo.  /vs2015 or /vs2012 Build with VS2015/2012
+@echo.  /vs2015            Build with VS2015
 @echo.  /help /h /?        Display this help message and exit
 @echo.
 @echo. TARGETS
 @echo.  all                Build and Packaging
 @echo.  build              Build (default)
+@echo.  test               Run the win\test CCI test against the built driver
 @echo.
 @echo. Examples:
 @echo.  build.bat                        # Build and pack CCI packages with default option
 @echo.  build.bat clean                  # Clean
+@echo.  build.bat /64 build test         # 64bit build, then run the CCI test
 @echo.  build.bat /32 build              # 32bit release build only
 @echo.  build.bat /64 /debug all         # 64bit debug mode Build and pack CCI packages
-@echo.  build.bat /vs2012 /64 /debug all # 64bit debug mode Build and pack CCI packages with vs2012 generator
+@echo.  build.bat /vs2015 /64 /debug all # 64bit debug mode Build and pack CCI packages with vs2015 generator
 GOTO :EOF
 
 
