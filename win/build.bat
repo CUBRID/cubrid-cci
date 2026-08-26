@@ -251,7 +251,7 @@ if NOT EXIST "%BUILD_PREFIX%\bin\cascci.dll" (
 )
 if "%BUILD_TARGET%" == "Win32" (set TEST_ARCH=x86) ELSE set TEST_ARCH=x64
 powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%test\run_test.ps1" -Prefix "%BUILD_PREFIX%" -Arch %TEST_ARCH%
-if ERRORLEVEL 1 (echo FAILD. & GOTO :EOF) ELSE echo OK.
+if ERRORLEVEL 1 (echo FAILED. & GOTO :EOF) ELSE echo OK.
 GOTO :EOF
 
 :ABSPATH
