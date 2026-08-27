@@ -15,137 +15,170 @@
 #   limitations under the License.
 # 
 name: github-checks
-on: 
+
+on:
   pull_request:
     branches:
       - develop
+
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   pr-style:
     name: pr-style
     runs-on: ubuntu-24.04
     steps:
-      - uses: deepakputhraya/action-pr-title@master
-        with:
-          regex: '^\[[A-Z]+-\d+\]\s.+' # Regex the title should match.
+      - name: Check PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [[ ! "$PR_TITLE" =~ ^\[[A-Z]+-[0-9]+\][[:space:]].+ ]]; then
+            echo "::error::PR title must match '[ABC-123] <description>' (got: $PR_TITLE)"
+            exit 1
+          fi
+
   code-style:
     name: code-style
     runs-on: ubuntu-24.04
-    env:
-      working-directory: .github/workflows
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Install packages
         run: |
           # dependencies to build GNU indent
-          sudo apt-get -yq install build-essential texi2html wget
-          
+          sudo apt-get update -yq
+          sudo apt-get install -yq build-essential texi2html wget
+
           # indent 2.2.11, the lastest version (2.2.12) make a different result
-          wget https://github.com/CUBRID/3rdparty/raw/develop/indent/indent-2.2.11.tar.gz
+          cd "$RUNNER_TEMP"
+          wget -q https://github.com/CUBRID/3rdparty/raw/develop/indent/indent-2.2.11.tar.gz
           tar xf indent-2.2.11.tar.gz
           cd indent-2.2.11
           ./configure
           sudo make -j install
-	  cd ..
 
-        working-directory: ${{ env.working-directory }}
-      - id: files
-        uses: jitterbit/get-changed-files@v1
-        continue-on-error: true
-      - name: Check code style
-        id: stylecheck
+      - name: Collect changed files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          for f in ${{ steps.files.outputs.added_modified }}; do
-            .github/workflows/codestyle.sh ${f}
-          done 
+          git diff --name-only --diff-filter=AM "$BASE_SHA" HEAD > changed_files.txt
+          echo "-----------------------------Changed files------------------------------"
+          cat changed_files.txt
+
+      - name: Check code style
+        run: |
+          while IFS= read -r f; do
+            [ -f "$f" ] || continue
+            .github/workflows/codestyle.sh "$f"
+          done < changed_files.txt
+          rm -f changed_files.txt
           git diff | tee gitdiff
           test ! -s gitdiff # is empty? yes: 0 no: 1
+
+      # Fails on pull requests from a fork: GITHUB_TOKEN is read-only there.
       - name: Suggest code changes
         if: ${{ failure() }}
+        continue-on-error: true
         uses: reviewdog/action-suggester@v1
         with:
           tool_name: code-style (indent)
+
   cppcheck:
     name: cppcheck
     runs-on: ubuntu-24.04
     steps:
-      - name: Install packages
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build cppcheck
         run: |
+          sudo apt-get update -yq
           sudo apt-get install -yq wget build-essential
 
           # Download cppcheck-2.13.0 source
-          wd=`pwd`
-          cd ..
-          wget https://github.com/CUBRID/3rdparty/raw/develop/cppcheck/2.13.0.tar.gz
+          cd "$RUNNER_TEMP"
+          wget -q https://github.com/CUBRID/3rdparty/raw/develop/cppcheck/2.13.0.tar.gz
           tar xf 2.13.0.tar.gz
 
           # build cppcheck-2.13.0
           cd cppcheck-2.13.0
           make -j4 MATCHCOMPILER=yes CFGDIR=cfg CXXFLAGS="-O2 -DNDEBUG -Wall -Wno-sign-compare -Wno-unused-function"
-          echo "CPPCHECK_PATH=`pwd`" >> $GITHUB_ENV
+          echo "CPPCHECK_PATH=$PWD" >> "$GITHUB_ENV"
 
-          cd $wd
-      - uses: actions/checkout@v2
-      - uses: jitterbit/get-changed-files@v1
-        id: files
-        continue-on-error: true
+      - name: Collect changed files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git diff --name-only --diff-filter=AM "$BASE_SHA" HEAD > changed_files.txt
+          echo "-----------------------------Changed files------------------------------"
+          cat changed_files.txt
+
       - name: cppcheck
         run: |
           result_file="cppcheck.result"
           summary_file="cppcheck.summary"
 
-          touch $result_file
-          touch $summary_file
+          : > "$result_file"
+          : > "$summary_file"
 
           # to suppress other error, add it to .github/workflows/cppcheck-spr-list
-          for f in ${{ steps.files.outputs.added_modified }}; do
-            if [ -d "$f" ]; then
-              continue
-            fi
+          while IFS= read -r f; do
+            [ -f "$f" ] || continue
 
-            set +e
-            ext=$(expr $f : ".*\(\..*\)")
-            set -e
-
-            case $ext in
-            .c|.h|.cpp|.hpp|.C|.H|.CPP|.HPP) true;; # only these formats are checked.
-            *) continue ;; # skip others
+            case "$f" in
+              *.c|*.h|*.cpp|*.hpp|*.C|*.H|*.CPP|*.HPP) ;; # only these formats are checked.
+              *) continue ;;                              # skip others
             esac
 
             # cppcheck can use the -i option to ignore files in a specified directory like -iheaplayers.
             # However, this option may not work correctly for files like malloc_2_8_3.c that are included in lea_heap.c.
             # So, make sure cppcheck does not check any files under the src/heaplayers directory.
-            if [[ $f =~ ^src/heaplayers/.* ]]; then
-              continue
-            fi
+            case "$f" in
+              src/heaplayers/*) continue ;;
+            esac
 
-            ${{ env.CPPCHECK_PATH }}/cppcheck --force -j4 --inline-suppr --suppressions-list=.github/workflows/cppcheck-spr-list --quiet --enable=warning $f 2>>$result_file
-          done
+            "$CPPCHECK_PATH/cppcheck" --force -j4 --inline-suppr \
+              --suppressions-list=.github/workflows/cppcheck-spr-list \
+              --quiet --enable=warning "$f" 2>>"$result_file"
+          done < changed_files.txt
 
-          echo "errors: `cat $result_file | grep " error: " | wc -l`" > $summary_file
-          echo "warnings: `cat $result_file | grep " warning: " | wc -l`" >> $summary_file
+          errors=$(grep -c " error: " "$result_file" || true)
+          warnings=$(grep -c " warning: " "$result_file" || true)
+          printf 'errors: %s\nwarnings: %s\n' "$errors" "$warnings" > "$summary_file"
 
           echo "-----------------------------Result-------------------------------------"
-          cat $result_file
+          cat "$result_file"
           echo "-----------------------------Summary------------------------------------"
-          cat $summary_file
+          cat "$summary_file"
 
-          ! cat $result_file | grep " error: " 1>/dev/null # if has errors, fail
-      - name: Get cppcheck.summary
-        id: get-comment-body
-        if: ${{ failure() }}
-        run: |
-          body=$(cat cppcheck.summary)
-          body="${body//'%'/'%25'}"
-          body="${body//$'\n'/'%0A'}"
-          body="${body//$'\r'/'%0D'}" 
-          echo ::set-output name=body::$body
+          # always readable, even when the PR comes from a fork
+          {
+            echo "### cppcheck"
+            echo
+            echo "errors: $errors / warnings: $warnings"
+            if [ -s "$result_file" ]; then
+              echo
+              echo '```'
+              cat "$result_file"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          [ "$errors" -eq 0 ] # if has errors, fail
+
+      # Fails on pull requests from a fork: GITHUB_TOKEN is read-only there.
       - name: Report cppcheck.summary
         if: ${{ failure() }}
-        uses: unsplash/comment-on-pr@master
+        continue-on-error: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          check_for_duplicate_msg: true  # OPTIONAL 
-          msg: |
-            **cppcheck**
-            ${{ steps.get-comment-body.outputs.body }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          body=$(printf '**cppcheck**\n\n```\n%s\n```\n' "$(cat cppcheck.summary)")
+          gh pr comment "$PR_NUMBER" --edit-last --body "$body" \
+            || gh pr comment "$PR_NUMBER" --body "$body"
