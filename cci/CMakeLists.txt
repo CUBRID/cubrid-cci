@@ -148,6 +148,9 @@ set_target_properties(cascci PROPERTIES PUBLIC_HEADER "${CCI_DIR}/cas_cci.h;${CC
 target_include_directories(cascci PRIVATE ${EP_INCLUDES})
 target_link_libraries(cascci LINK_PRIVATE ${EP_LIBS} ${CMAKE_THREAD_LIBS_INIT})
 target_link_libraries(cascci LINK_PRIVATE ${CMAKE_DL_LIBS})
+if(UNIX)
+  target_link_options(cascci PRIVATE "LINKER:--exclude-libs,libssl.a:libcrypto.a")
+endif(UNIX)
 
 if(NOT WITH_CCI)
   add_library(cascci_static STATIC ${CASCCI_SOURCES})
@@ -157,6 +160,7 @@ if(NOT WITH_CCI)
   set_target_properties(cascci_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
   set_target_properties(cascci_static PROPERTIES OUTPUT_NAME cascci)
   if(WIN32)
+    set_target_properties(cascci_static PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/static")
     target_compile_options(cascci_static PRIVATE 
     "$<$<CONFIG:Debug>:/MTd>"
     "$<$<CONFIG:MinSizeRel>:/MT>"
@@ -204,11 +208,25 @@ if(DEFINED EP_TARGETS)
   add_dependencies(cascci ${EP_TARGETS})
 endif(DEFINED EP_TARGETS)
 
+if(WITH_CCI)
+  if(NOT DEFINED CUBRID_CCIDIR)
+    set(CUBRID_CCIDIR cci)
+  endif(NOT DEFINED CUBRID_CCIDIR)
+  set(CCI_INSTALL_BINDIR     ${CUBRID_CCIDIR}/bin)
+  set(CCI_INSTALL_LIBDIR     ${CUBRID_CCIDIR}/lib)
+  set(CCI_INSTALL_INCLUDEDIR ${CUBRID_CCIDIR}/include)
+else(WITH_CCI)
+  set(CCI_INSTALL_BINDIR     ${CUBRID_BINDIR})
+  set(CCI_INSTALL_LIBDIR     ${CUBRID_LIBDIR})
+  set(CCI_INSTALL_INCLUDEDIR ${CUBRID_INCLUDEDIR})
+endif(WITH_CCI)
+message(STATUS "CCI component install dirs: ${CCI_INSTALL_BINDIR}, ${CCI_INSTALL_LIBDIR}, ${CCI_INSTALL_INCLUDEDIR}")
+
 install(TARGETS cascci
-  RUNTIME DESTINATION ${CUBRID_CCIDIR}/bin COMPONENT CCI
-  LIBRARY DESTINATION ${CUBRID_CCIDIR}/lib COMPONENT CCI
-  ARCHIVE DESTINATION ${CUBRID_CCIDIR}/lib COMPONENT CCI
-  PUBLIC_HEADER DESTINATION ${CUBRID_CCIDIR}/include COMPONENT CCI
+  RUNTIME DESTINATION ${CCI_INSTALL_BINDIR} COMPONENT CCI
+  LIBRARY DESTINATION ${CCI_INSTALL_LIBDIR} COMPONENT CCI
+  ARCHIVE DESTINATION ${CCI_INSTALL_LIBDIR} COMPONENT CCI
+  PUBLIC_HEADER DESTINATION ${CCI_INSTALL_INCLUDEDIR} COMPONENT CCI
   )
 
 macro(create_link file symlink)
@@ -239,7 +257,7 @@ endif(WITH_CCI)
 if(WIN32)
   install(DIRECTORY
     ${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}/
-    DESTINATION ${CUBRID_CCIDIR}/bin COMPONENT Debuginfo
+    DESTINATION ${CCI_INSTALL_BINDIR} COMPONENT Debuginfo
     FILES_MATCHING PATTERN "*.pdb"
     )
 endif(WIN32)

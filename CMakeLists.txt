@@ -70,7 +70,8 @@ option(ENABLE_32BIT "Build for 32-bit banaries (on 64-bit platform)" OFF)
 
 # options for external libraries (BUNDLED, EXTERAL or SYSTEM)
 # openssl library sources URL
-set(WITH_LIBOPENSSL_URL "https://github.com/CUBRID/3rdparty/raw/develop/openssl/openssl-1.1.1f.tar.gz")
+set(WITH_LIBOPENSSL_URL "https://github.com/CUBRID/3rdparty/raw/develop/openssl/openssl-3.5.7.tar.gz")
+set(WITH_LIBOPENSSL_URL_HASH "SHA256=a8c0d28a529ca480f9f36cf5792e2cd21984552a3c8e4aa11a24aa31aeac98e8")
 set(WITH_EXTERNAL_PREFIX "EXTERNAL" CACHE STRING "External library prefix (default: EXTERNAL)")
 set(WITH_BUNDLED_PREFIX "BUNDLED" CACHE STRING "Bundled library prefix (default: BUNDLED)")
 set(WITH_SYSTEM_PREFIX "SYSTEM" CACHE STRING "System library prefix (default: SYSTEM)")
@@ -383,7 +384,6 @@ endif(CMAKE_SYSTEM_NAME MATCHES "Linux")
 set(COMMON_DEFS SYSV MAXPATHLEN=1024 -D_REENTRANT)
 
 # For CUBRID environment variable option
-  set(CUBRID_CCIDIR cci)
   set(CUBRID_STATIC_LIBDIR static_lib)
   set(CUBRID_BINDIR bin)
   set(CUBRID_LIBDIR lib)
@@ -441,36 +441,74 @@ endif(UNIX)
 #                  ${WITH_LIBOPENSSL_ROOT_PATH}/include
 # on Windows:
 # * "EXTERNAL" - (default) uses the prebuilt library from cubrid/win/external
+
+set(LIBOPENSSL_BUNDLE_AFTER_BUILD OFF)
+
+include(ProcessorCount)
+ProcessorCount(LIBOPENSSL_BUILD_JOBS)
+if(LIBOPENSSL_BUILD_JOBS EQUAL 0)
+  set(LIBOPENSSL_BUILD_JOBS 1)
+endif()
+
+if(WITH_LIBOPENSSL STREQUAL "BUNDLED" AND UNIX)
+  if(NOT EXISTS ${CMAKE_SOURCE_DIR}/external/openssl/lib/libssl.a
+      OR NOT EXISTS ${CMAKE_SOURCE_DIR}/external/openssl/lib/libcrypto.a)
+    message(STATUS "No bundled openssl library under ${CMAKE_SOURCE_DIR}/external/openssl/lib;"
+                   " downloading and building it from ${WITH_LIBOPENSSL_URL} instead.")
+    set(WITH_LIBOPENSSL "EXTERNAL")
+    set(LIBOPENSSL_BUNDLE_AFTER_BUILD ON)
+  endif()
+endif()
+
 if(WITH_LIBOPENSSL STREQUAL "EXTERNAL")
   set(LIBOPENSSL_TARGET libopenssl)
   if(UNIX)
-    #compile OpenSSL library given an internet url to a OpenSSL archive
-    #e.g. https://www.openssl.org/source/openssl-1.1.1f.tar.gz
-    externalproject_add(${LIBOPENSSL_TARGET}
-      URL                  ${WITH_LIBOPENSSL_URL}
-      TIMEOUT              600
-      DOWNLOAD_NO_PROGRESS 1
-      CONFIGURE_COMMAND    <SOURCE_DIR>/config --prefix=${CMAKE_CURRENT_BINARY_DIR}/external no-shared # ${DEFAULT_CONFIGURE_OPTS}
-      BUILD_COMMAND        make all AUTOCONF=: AUTOHEADER=: AUTOMAKE=: ACLOCAL=:
-      INSTALL_COMMAND      make install_sw AUTOCONF=: AUTOHEADER=: AUTOMAKE=: ACLOCAL=:
-      )
     set(LIBOPENSSL_LIBS ${CMAKE_CURRENT_BINARY_DIR}/external/lib/libssl.a ${CMAKE_CURRENT_BINARY_DIR}/external/lib/libcrypto.a)
     set(LIBOPENSSL_INCLUDES ${CMAKE_CURRENT_BINARY_DIR}/external/include)
+    externalproject_add(${LIBOPENSSL_TARGET}
+      URL                  ${WITH_LIBOPENSSL_URL}
+      URL_HASH             ${WITH_LIBOPENSSL_URL_HASH}
+      TIMEOUT              600
+      DOWNLOAD_NO_PROGRESS 1
+      DOWNLOAD_EXTRACT_TIMESTAMP FALSE
+      CONFIGURE_COMMAND    <SOURCE_DIR>/config --prefix=${CMAKE_CURRENT_BINARY_DIR}/external --libdir=lib no-shared no-module no-docs no-tests
+      COMMAND ${CMAKE_COMMAND} -E sleep 2
+      BUILD_COMMAND        make -j${LIBOPENSSL_BUILD_JOBS} all AUTOCONF=: AUTOHEADER=: AUTOMAKE=: ACLOCAL=:
+      INSTALL_COMMAND      make install_sw AUTOCONF=: AUTOHEADER=: AUTOMAKE=: ACLOCAL=:
+      BUILD_BYPRODUCTS     ${LIBOPENSSL_LIBS}
+      )
     list(APPEND EP_TARGETS ${LIBOPENSSL_TARGET})
+
+    if(LIBOPENSSL_BUNDLE_AFTER_BUILD)
+      externalproject_add_step(${LIBOPENSSL_TARGET} bundle_into_source
+        COMMENT "Copying built openssl into ${CMAKE_SOURCE_DIR}/external/openssl"
+        DEPENDEES install
+        ALWAYS 0
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/external/openssl/lib
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_CURRENT_BINARY_DIR}/external/lib/libssl.a
+                ${CMAKE_CURRENT_BINARY_DIR}/external/lib/libcrypto.a
+                ${CMAKE_SOURCE_DIR}/external/openssl/lib
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_BINARY_DIR}/external/include
+                ${CMAKE_SOURCE_DIR}/external/openssl/include
+        )
+    endif()
   else(UNIX)
     set(LIBOPENSSL_LIBS ${WINDOWS_EXTERNAL_DIR}/openssl/lib/libssl.lib)
     list(APPEND LIBOPENSSL_LIBS ${WINDOWS_EXTERNAL_DIR}/openssl/lib/libcrypto.lib)
     list(APPEND LIBOPENSSL_LIBS Crypt32 Ws2_32)
     set(LIBOPENSSL_INCLUDES ${WINDOWS_EXTERNAL_DIR}/openssl/include)
   endif(UNIX)
-elseif(WITH_LIOPENSSL STREQUAL "SYSTEM")
+elseif(WITH_LIBOPENSSL STREQUAL "SYSTEM")
   if(UNIX)
     find_library(LIBOPENSSL_LIBS NAMES libssl.a libcrypto.a PATHS ${WITH_EXTERNAL_LIBS_PATH} ${WITH_LIBOPENSSL_ROOT_PATH}/lib REQUIRED)
     find_path(LIBOPENSSL_INCLUDES NAMES openssl/conf.h openssl/evp.h PATHS ${WITH_EXTERNAL_HEADERS_PATH} ${WITH_LIBOPENSSL_ROOT_PATH}/include REQUIRED)
     message(STATUS "Found openssl library: ${LIBOPENSSL_LIBS}")
     message(STATUS "Found openssl headers: ${LIBOPENSSL_INCLUDES}")
   endif(UNIX)
-else(WITH_LIOPENSSL STREQUAL "BUNDLED")
+  add_custom_target(libopenssl)
+else(WITH_LIBOPENSSL STREQUAL "BUNDLED")
   if(UNIX)
     set(LIBOPENSSL_TARGET libopenssl)
     set(LIBOPENSSL_LIBS ${CMAKE_SOURCE_DIR}/external/openssl/lib/libssl.a ${CMAKE_SOURCE_DIR}/external/openssl/lib/libcrypto.a)
@@ -480,22 +518,12 @@ else(WITH_LIOPENSSL STREQUAL "BUNDLED")
     message(STATUS "built-in openssl headers: ${LIBOPENSSL_INCLUDES}")
   else(UNIX)
     if(TARGET_PLATFORM_BITS EQUAL 32)
-      if(CMAKE_GENERATOR MATCHES "Visual Studio 11 2012")
-        set(LIBOPENSSL_LIBS ${WINDOWS_EXTERNAL_DIR}/openssl/lib_v110/libssl.lib)
-        list(APPEND LIBOPENSSL_LIBS ${WINDOWS_EXTERNAL_DIR}/openssl/lib_v110/libcrypto.lib)
-      else(CMAKE_GENERATOR MATCHES "Visual Studio 11 2012")
-        set(LIBOPENSSL_LIBS ${WINDOWS_EXTERNAL_DIR}/openssl/lib_v140/libssl.lib)
-        list(APPEND LIBOPENSSL_LIBS ${WINDOWS_EXTERNAL_DIR}/openssl/lib_v140/libcrypto.lib)
-      endif(CMAKE_GENERATOR MATCHES "Visual Studio 11 2012")
+      set(LIBOPENSSL_LIBS ${WINDOWS_EXTERNAL_DIR}/openssl/lib_v140/libssl.lib)
+      list(APPEND LIBOPENSSL_LIBS ${WINDOWS_EXTERNAL_DIR}/openssl/lib_v140/libcrypto.lib)
     else(TARGET_PLATFORM_BITS EQUAL 32)
-      if(CMAKE_GENERATOR MATCHES "Visual Studio 11 2012")
-        set(LIBOPENSSL_LIBS ${WINDOWS_EXTERNAL_DIR}/openssl/lib64_v110/libssl.lib)
-        list(APPEND LIBOPENSSL_LIBS ${WINDOWS_EXTERNAL_DIR}/openssl/lib64_v110/libcrypto.lib)
-      else(CMAKE_GENERATOR MATCHES "Visual Studio 11 2012")
-        set(LIBOPENSSL_LIBS ${WINDOWS_EXTERNAL_DIR}/openssl/lib64_v140/libssl.lib)
-        list(APPEND LIBOPENSSL_LIBS ${WINDOWS_EXTERNAL_DIR}/openssl/lib64_v140/libcrypto.lib)
-      endif(CMAKE_GENERATOR MATCHES "Visual Studio 11 2012")
-    endif(TARGET_PLATFORM_BITS EQUAL 32) 
+      set(LIBOPENSSL_LIBS ${WINDOWS_EXTERNAL_DIR}/openssl/lib64_v140/libssl.lib)
+      list(APPEND LIBOPENSSL_LIBS ${WINDOWS_EXTERNAL_DIR}/openssl/lib64_v140/libcrypto.lib)
+    endif(TARGET_PLATFORM_BITS EQUAL 32)
     list(APPEND LIBOPENSSL_LIBS Crypt32 Ws2_32)
     set(LIBOPENSSL_INCLUDES ${WINDOWS_EXTERNAL_DIR}/openssl/include)
   endif(UNIX)
