@@ -6719,6 +6719,20 @@ bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void *value, in
 	  ADD_ARG_BYTES (net_buf, value, size);
 	}
       break;
+    case CCI_U_TYPE_INTERNAL_BLOB_UPLOAD:
+    case CCI_U_TYPE_INTERNAL_CLOB_UPLOAD:
+      /* The marker string identifies a completed server-side stream upload; send it verbatim so the
+       * server can bind the staged LOB. Without this case it would fall through to the default and be
+       * sent as a zero-length argument, which the server turns into NULL. */
+      if (value == NULL)
+	{
+	  ADD_ARG_BYTES (net_buf, NULL, 0);
+	}
+      else
+	{
+	  ADD_ARG_BYTES (net_buf, value, size);
+	}
+      break;
     case CCI_U_TYPE_BIGINT:
     case CCI_U_TYPE_UBIGINT:
       if (value == NULL)
