@@ -1,0 +1,3 @@
+# Batch files are read by cmd.exe, which needs CRLF: with LF only endings a
+# "goto :LABEL" can fail with "The system cannot find the batch label specified".
+*.bat text eol=crlf

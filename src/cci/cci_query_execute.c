@@ -1646,6 +1646,11 @@ qe_fetch (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, char flag, int r
   err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
   if (err_code < 0)
     {
+      if (err_code == CCI_ER_DBMS || err_code == CCI_ER_COMMUNICATION) {
+        hm_req_handle_fetch_buf_free(req_handle);
+        req_handle->cursor_pos = 0;
+        req_handle->is_closed = 1;
+      }
       return err_code;
     }
 
