@@ -118,6 +118,10 @@ extern "C"
  * so the broker can verify the cancel request against the CAS-issued session id in addition
  * to source IP/port. For "X1" this bit is carried in the function-flag byte (msg[3]); for
  * "QC" it is carried in the first reserved byte (msg[8]).
+ * NOTE: this bit only controls wire framing on this one cancel request; it does not make the
+ * broker's session-id check mandatory, since the request it rides on is unauthenticated and
+ * could simply omit it. The broker instead decides that from this connection's own reported
+ * protocol version (PROTOCOL_V13, below), recorded at connect time.
  * NOTE: must stay in sync with the engine repository's src/broker/cas_protocol.h. */
 #define BROKER_SUPPORT_SESSION_CANCEL           0x10
 
@@ -221,7 +225,9 @@ extern "C"
     PROTOCOL_V10 = 10,		/* Secure Broker/CAS using SSL */
     PROTOCOL_V11 = 11,		/* make out resultset */
     PROTOCOL_V12 = 12,		/* Remove trailing zeros from double and float types */
-    CURRENT_PROTOCOL = PROTOCOL_V12
+    PROTOCOL_V13 = 13,		/* CAS-issued session id required (not just optionally checked) for
+				 * QC/X1 query cancel, see KVE-2026-1827 */
+    CURRENT_PROTOCOL = PROTOCOL_V13
   };
   typedef enum t_cas_protocol T_CAS_PROTOCOL;
 
