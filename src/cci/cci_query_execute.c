@@ -6483,6 +6483,8 @@ bind_value_conversion (T_CCI_A_TYPE a_type, T_CCI_U_TYPE u_type, char flag, void
 	{
 	case CCI_U_TYPE_BIT:
 	case CCI_U_TYPE_VARBIT:
+	case CCI_U_TYPE_INTERNAL_BLOB_UPLOAD:
+	case CCI_U_TYPE_INTERNAL_CLOB_UPLOAD:
 	  {
 	    T_CCI_BIT *bit_value = (T_CCI_BIT *) value;
 
@@ -6711,6 +6713,20 @@ bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void *value, in
 	{
 	  char empty_byte = 0;
 	  ADD_ARG_BYTES (net_buf, &empty_byte, 1);
+	}
+      else
+	{
+	  ADD_ARG_BYTES (net_buf, value, size);
+	}
+      break;
+    case CCI_U_TYPE_INTERNAL_BLOB_UPLOAD:
+    case CCI_U_TYPE_INTERNAL_CLOB_UPLOAD:
+      /* The marker string identifies a completed server-side stream upload; send it verbatim so the
+       * server can bind the staged LOB. Without this case it would fall through to the default and be
+       * sent as a zero-length argument, which the server turns into NULL. */
+      if (value == NULL)
+	{
+	  ADD_ARG_BYTES (net_buf, NULL, 0);
 	}
       else
 	{
@@ -7374,4 +7390,128 @@ get_charset_type (char type)
       charset = (type & CCI_CHARSET_MASK);
     }
   return charset;
+}
+
+int
+qe_stream_init (T_CON_HANDLE * con_handle, int stream_kind, const char *config, int config_len,
+                T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_INIT;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_INT (&net_buf, stream_kind);
+  ADD_ARG_BYTES (&net_buf, config, config_len);
+  if (net_buf.err_code < 0)
+    {
+      err_code = net_buf.err_code;
+      net_buf_clear (&net_buf);
+      return err_code;
+    }
+
+  err_code = net_send_msg (con_handle, net_buf.data, net_buf.data_size);
+  net_buf_clear (&net_buf);
+  if (err_code < 0)
+    {
+      return err_code;
+    }
+
+  err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
+  FREE_MEM (result_msg);
+  return err_code;
+}
+
+int
+qe_stream_send_data (T_CON_HANDLE * con_handle, const char *data, int data_len, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_SEND_DATA;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_BYTES (&net_buf, data, data_len);
+  if (net_buf.err_code < 0)
+    {
+      err_code = net_buf.err_code;
+      net_buf_clear (&net_buf);
+      return err_code;
+    }
+
+  err_code = net_send_msg (con_handle, net_buf.data, net_buf.data_size);
+  net_buf_clear (&net_buf);
+  if (err_code < 0)
+    {
+      return err_code;
+    }
+
+  err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
+  FREE_MEM (result_msg);
+  return err_code;
+}
+
+int
+qe_stream_end (T_CON_HANDLE * con_handle, INT64 * result, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_END;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  err_code = net_send_msg (con_handle, net_buf.data, net_buf.data_size);
+  net_buf_clear (&net_buf);
+  if (err_code < 0)
+    {
+      return err_code;
+    }
+
+  err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
+  if (err_code >= 0 && result_msg != NULL && result_msg_size >= NET_SIZE_INT + NET_SIZE_INT64)
+    {
+      char *ptr = result_msg;
+      int response_code;
+      NET_STR_TO_INT (response_code, ptr);
+      ptr += NET_SIZE_INT;
+      NET_STR_TO_INT64 (*result, ptr);
+      err_code = response_code;
+    }
+  else if (err_code >= 0)
+    {
+      err_code = CCI_ER_COMMUNICATION;
+    }
+
+  FREE_MEM (result_msg);
+  return err_code;
+}
+
+int
+qe_stream_abort (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_ABORT;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  err_code = net_send_msg (con_handle, net_buf.data, net_buf.data_size);
+  net_buf_clear (&net_buf);
+  if (err_code < 0)
+    {
+      return err_code;
+    }
+
+  err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
+  FREE_MEM (result_msg);
+  return err_code;
 }
