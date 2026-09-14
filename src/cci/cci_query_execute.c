@@ -1646,11 +1646,12 @@ qe_fetch (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, char flag, int r
   err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
   if (err_code < 0)
     {
-      if (err_code == CCI_ER_DBMS || err_code == CCI_ER_COMMUNICATION) {
-        hm_req_handle_fetch_buf_free(req_handle);
-        req_handle->cursor_pos = 0;
-        req_handle->is_closed = 1;
-      }
+      if (err_code == CCI_ER_DBMS || err_code == CCI_ER_COMMUNICATION)
+	{
+	  hm_req_handle_fetch_buf_free (req_handle);
+	  req_handle->cursor_pos = 0;
+	  req_handle->is_closed = 1;
+	}
       return err_code;
     }
 
@@ -1845,6 +1846,9 @@ qe_get_data (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int col_no, i
       break;
     case CCI_A_TYPE_DATE_TZ:
       err_code = qe_get_data_date_tz (u_type, col_value_p, value, data_size);
+      break;
+    case CCI_A_TYPE_INTERNAL_LOB:
+      err_code = qe_get_data_internal_lob (u_type, col_value_p, data_size, value);
       break;
     default:
       return CCI_ER_ATYPE;
@@ -3489,6 +3493,60 @@ qe_get_data_str (T_VALUE_BUF * conv_val_buf, T_CCI_U_TYPE u_type, char *col_valu
   *((char **) value) = (char *) conv_val_buf->data;
   *indicator = (int) strlen ((char *) conv_val_buf->data);
 
+  return 0;
+}
+
+/*
+ * qe_get_data_internal_lob () - Decode an internal LOB column: byte length followed by the value's locator.
+ *
+ * The locator points into the fetch buffer, so it stays valid only until the cursor moves.  A caller that needs
+ * it past that must copy it, exactly as it would for a string column.
+ */
+int
+qe_get_data_internal_lob (T_CCI_U_TYPE u_type, char *col_value_p, int col_val_size, void *value)
+{
+  T_CCI_INTERNAL_LOB *lob = (T_CCI_INTERNAL_LOB *) value;
+  INT64 byte_length = 0;
+  char wire_kind;
+
+  if (u_type != CCI_U_TYPE_BLOB && u_type != CCI_U_TYPE_CLOB)
+    {
+      return CCI_ER_TYPE_CONVERSION;
+    }
+  if (col_val_size < 1)
+    {
+      return CCI_ER_COMMUNICATION;
+    }
+
+  lob->length = 0;
+  lob->locator_size = 0;
+  lob->locator = NULL;
+  lob->content_size = 0;
+  lob->content = NULL;
+
+  wire_kind = col_value_p[0];
+  if (wire_kind == INTERNAL_LOB_WIRE_INLINE)
+    {
+      /* the value has no storage behind it - what arrived is all there is */
+      lob->content_size = col_val_size - 1;
+      lob->content = col_value_p + 1;
+      lob->length = lob->content_size;
+      return 0;
+    }
+  if (wire_kind != INTERNAL_LOB_WIRE_REF || col_val_size < 1 + NET_SIZE_INT64)
+    {
+      return CCI_ER_COMMUNICATION;
+    }
+
+  NET_STR_TO_INT64 (byte_length, col_value_p + 1);
+  if (byte_length < 0)
+    {
+      return CCI_ER_COMMUNICATION;
+    }
+
+  lob->length = (long long) byte_length;
+  lob->locator_size = col_val_size - 1 - NET_SIZE_INT64;
+  lob->locator = col_value_p + 1 + NET_SIZE_INT64;
   return 0;
 }
 
@@ -6483,6 +6541,8 @@ bind_value_conversion (T_CCI_A_TYPE a_type, T_CCI_U_TYPE u_type, char flag, void
 	{
 	case CCI_U_TYPE_BIT:
 	case CCI_U_TYPE_VARBIT:
+	case CCI_U_TYPE_INTERNAL_BLOB_UPLOAD:
+	case CCI_U_TYPE_INTERNAL_CLOB_UPLOAD:
 	  {
 	    T_CCI_BIT *bit_value = (T_CCI_BIT *) value;
 
@@ -6711,6 +6771,20 @@ bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void *value, in
 	{
 	  char empty_byte = 0;
 	  ADD_ARG_BYTES (net_buf, &empty_byte, 1);
+	}
+      else
+	{
+	  ADD_ARG_BYTES (net_buf, value, size);
+	}
+      break;
+    case CCI_U_TYPE_INTERNAL_BLOB_UPLOAD:
+    case CCI_U_TYPE_INTERNAL_CLOB_UPLOAD:
+      /* The marker string identifies a completed server-side stream upload; send it verbatim so the
+       * server can bind the staged LOB. Without this case it would fall through to the default and be
+       * sent as a zero-length argument, which the server turns into NULL. */
+      if (value == NULL)
+	{
+	  ADD_ARG_BYTES (net_buf, NULL, 0);
 	}
       else
 	{
@@ -7374,4 +7448,277 @@ get_charset_type (char type)
       charset = (type & CCI_CHARSET_MASK);
     }
   return charset;
+}
+
+int
+qe_stream_init (T_CON_HANDLE * con_handle, int stream_kind, const char *config, int config_len, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_INIT;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_INT (&net_buf, stream_kind);
+  ADD_ARG_BYTES (&net_buf, config, config_len);
+  if (net_buf.err_code < 0)
+    {
+      err_code = net_buf.err_code;
+      net_buf_clear (&net_buf);
+      return err_code;
+    }
+
+  err_code = net_send_msg (con_handle, net_buf.data, net_buf.data_size);
+  net_buf_clear (&net_buf);
+  if (err_code < 0)
+    {
+      return err_code;
+    }
+
+  err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
+  FREE_MEM (result_msg);
+  return err_code;
+}
+
+int
+qe_stream_send_data (T_CON_HANDLE * con_handle, const char *data, int data_len, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_SEND_DATA;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_BYTES (&net_buf, data, data_len);
+  if (net_buf.err_code < 0)
+    {
+      err_code = net_buf.err_code;
+      net_buf_clear (&net_buf);
+      return err_code;
+    }
+
+  err_code = net_send_msg (con_handle, net_buf.data, net_buf.data_size);
+  net_buf_clear (&net_buf);
+  if (err_code < 0)
+    {
+      return err_code;
+    }
+
+  err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
+  FREE_MEM (result_msg);
+  return err_code;
+}
+
+int
+qe_stream_end (T_CON_HANDLE * con_handle, INT64 * result, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_END;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  err_code = net_send_msg (con_handle, net_buf.data, net_buf.data_size);
+  net_buf_clear (&net_buf);
+  if (err_code < 0)
+    {
+      return err_code;
+    }
+
+  err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
+  if (err_code >= 0 && result_msg != NULL && result_msg_size >= NET_SIZE_INT + NET_SIZE_INT64)
+    {
+      char *ptr = result_msg;
+      int response_code;
+      NET_STR_TO_INT (response_code, ptr);
+      ptr += NET_SIZE_INT;
+      NET_STR_TO_INT64 (*result, ptr);
+      err_code = response_code;
+    }
+  else if (err_code >= 0)
+    {
+      err_code = CCI_ER_COMMUNICATION;
+    }
+
+  FREE_MEM (result_msg);
+  return err_code;
+}
+
+int
+qe_stream_abort (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_ABORT;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  err_code = net_send_msg (con_handle, net_buf.data, net_buf.data_size);
+  net_buf_clear (&net_buf);
+  if (err_code < 0)
+    {
+      return err_code;
+    }
+
+  err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
+  FREE_MEM (result_msg);
+  return err_code;
+}
+
+/*
+ * Internal LOB read streaming.  A BLOB/CLOB column of an internal LOB arrives as a locator, not as content, so the
+ * payload is pulled afterwards in bounded chunks.  The three calls mirror the server read cursor csql uses.
+ */
+int
+qe_lob_stream_open (T_CON_HANDLE * con_handle, const char *locator, int locator_len, INT64 start_offset,
+                    INT64 * token, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_LOB_STREAM_OPEN;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_BYTES (&net_buf, locator, locator_len);
+  ADD_ARG_BIGINT (&net_buf, start_offset);
+  if (net_buf.err_code < 0)
+    {
+      err_code = net_buf.err_code;
+      net_buf_clear (&net_buf);
+      return err_code;
+    }
+
+  err_code = net_send_msg (con_handle, net_buf.data, net_buf.data_size);
+  net_buf_clear (&net_buf);
+  if (err_code < 0)
+    {
+      return err_code;
+    }
+
+  err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
+  if (err_code >= 0 && result_msg != NULL && result_msg_size >= NET_SIZE_INT + NET_SIZE_INT64)
+    {
+      char *ptr = result_msg;
+      int response_code;
+      NET_STR_TO_INT (response_code, ptr);
+      ptr += NET_SIZE_INT;
+      NET_STR_TO_INT64 (*token, ptr);
+      err_code = response_code;
+    }
+  else if (err_code >= 0)
+    {
+      err_code = CCI_ER_COMMUNICATION;
+    }
+
+  FREE_MEM (result_msg);
+  return err_code;
+}
+
+int
+qe_lob_stream_read (T_CON_HANDLE * con_handle, INT64 token, char *buf, int size, int *nread, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_LOB_STREAM_READ;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size;
+
+  *nread = 0;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_BIGINT (&net_buf, token);
+  ADD_ARG_INT (&net_buf, size);
+  if (net_buf.err_code < 0)
+    {
+      err_code = net_buf.err_code;
+      net_buf_clear (&net_buf);
+      return err_code;
+    }
+
+  err_code = net_send_msg (con_handle, net_buf.data, net_buf.data_size);
+  net_buf_clear (&net_buf);
+  if (err_code < 0)
+    {
+      return err_code;
+    }
+
+  err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
+  if (err_code >= 0 && result_msg != NULL && result_msg_size >= NET_SIZE_INT + NET_SIZE_INT)
+    {
+      char *ptr = result_msg;
+      int response_code;
+      int received;
+
+      NET_STR_TO_INT (response_code, ptr);
+      ptr += NET_SIZE_INT;
+      NET_STR_TO_INT (received, ptr);
+      ptr += NET_SIZE_INT;
+
+      if (response_code < 0)
+	{
+	  err_code = response_code;
+	}
+      else if (received < 0 || received > size || result_msg_size < NET_SIZE_INT + NET_SIZE_INT + received)
+	{
+	  err_code = CCI_ER_COMMUNICATION;
+	}
+      else
+        {
+          if (received > 0)
+            {
+              memcpy (buf, ptr, (size_t) received);
+            }
+          *nread = received;
+          err_code = response_code;
+        }
+    }
+  else if (err_code >= 0)
+    {
+      err_code = CCI_ER_COMMUNICATION;
+    }
+
+  FREE_MEM (result_msg);
+  return err_code;
+}
+
+int
+qe_lob_stream_close (T_CON_HANDLE * con_handle, INT64 token, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_LOB_STREAM_CLOSE;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_BIGINT (&net_buf, token);
+  if (net_buf.err_code < 0)
+    {
+      err_code = net_buf.err_code;
+      net_buf_clear (&net_buf);
+      return err_code;
+    }
+
+  err_code = net_send_msg (con_handle, net_buf.data, net_buf.data_size);
+  net_buf_clear (&net_buf);
+  if (err_code < 0)
+    {
+      return err_code;
+    }
+
+  err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
+  FREE_MEM (result_msg);
+  return err_code;
 }
