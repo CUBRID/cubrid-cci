@@ -7417,7 +7417,7 @@ qe_stream_end (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf)
   int err_code;
   char *result_msg = NULL;
   int result_msg_size;
-  int rows_loaded = 0;
+  INT64 rows_loaded = 0;
 
   net_buf_init (&net_buf);
   net_buf_cp_str (&net_buf, &func_code, 1);
@@ -7437,11 +7437,16 @@ qe_stream_end (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf)
     }
 
   err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
-  if (err_code >= 0 && result_msg != NULL && result_msg_size >= NET_SIZE_INT)
+  if (err_code >= 0 && result_msg != NULL && result_msg_size >= NET_SIZE_INT + NET_SIZE_BIGINT)
     {
       char *ptr = result_msg;
-      NET_STR_TO_INT (rows_loaded, ptr);
-      err_code = rows_loaded;
+      int res_code;
+
+      /* result code, then the binding's 64-bit count */
+      NET_STR_TO_INT (res_code, ptr);
+      ptr += NET_SIZE_INT;
+      NET_STR_TO_BIGINT (rows_loaded, ptr);
+      err_code = (res_code < 0) ? res_code : (int) rows_loaded;
     }
 
   FREE_MEM (result_msg);
