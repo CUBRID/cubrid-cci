@@ -32,6 +32,8 @@ build_target="x86_64"
 build_mode="release"
 source_dir=`pwd`
 configure_options=""
+# number of parallel compile jobs
+build_jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null || grep -c '^processor' /proc/cpuinfo)
 # default build_dir = "$source_dir/build_${build_target}_${build_mode}"
 build_dir=""
 prefix_dir=""
@@ -233,14 +235,14 @@ function build_configure ()
 function build_compile ()
 {
   # make
-  print_check "Building"
+  print_check "Building ($build_jobs jobs)"
   # Add '-j' into MAKEFLAGS environment variable to specify the number of compile jobs to run simultaneously
   if [ -n "$MAKEFLAGS" -a -z "${MAKEFLAGS##*-j*}" ]; then
     # Append '-l<num of cpu>' option into MAKEFLAGS if the '-j' option exists
     NPROC=$(grep -c '^processor' /proc/cpuinfo)
     export MAKEFLAGS="$MAKEFLAGS -l$NPROC"
   fi
-  cmake --build $build_dir
+  cmake --build $build_dir -j $build_jobs
   [ $? -eq 0 ] && print_result "OK" || print_fatal "Building failed"
 }
 
@@ -313,6 +315,7 @@ function show_usage ()
   echo ""
   echo " OPTIONS"
   echo "  -m      Set build mode(release, debug); [default: release]"
+  echo "  -j      Number of parallel compile jobs; [default: number of cpus]"
   echo "  -? | -h Show this help message and exit"
   echo ""
   echo " TARGET"
@@ -322,15 +325,17 @@ function show_usage ()
   echo " EXAMPLES"
   echo "  $0                  # Build and pack all packages (64/release)"
   echo "  $0 -m debug all     # Create 64bit debug mode packages"
+  echo "  $0 -j 4             # Build using 4 parallel jobs"
   echo ""
 }
 
 
 function get_options ()
 {
-  while getopts ":m:vh" opt; do
+  while getopts ":m:j:vh" opt; do
     case $opt in
       m ) build_mode="$OPTARG" ;;
+      j ) build_jobs="$OPTARG" ;;
       v ) print_version_only=1 ;;
       h|\?|* ) show_usage; exit 1;;
     esac

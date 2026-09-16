@@ -1,2 +1,19 @@
-This library is built for openssl-1.1.1f
-It is built static library using VS2015.
+This directory holds the OpenSSL that a normal (BUNDLED) driver build links against.
+The driver is shipped as a source tarball that has to build without a network, so the
+static archives live here rather than being downloaded.
+
+Version: openssl-3.5.7 (same release the CUBRID server bundles)
+
+lib/{libssl.a,libcrypto.a} and include/  -  Linux x86_64, built from
+  https://github.com/CUBRID/3rdparty/raw/develop/openssl/openssl-3.5.7.tar.gz
+  SHA256=a8c0d28a529ca480f9f36cf5792e2cd21984552a3c8e4aa11a24aa31aeac98e8
+
+  $ ./config --prefix=<dir> --libdir=lib no-shared no-module no-docs no-tests
+  $ make && make install_sw
+
+  --libdir=lib is required: OpenSSL 3.x otherwise installs into <dir>/lib64 on
+  linux-x86_64. The Windows archives are built the same way with VS2015 (v140).
+
+To refresh these, rebuild with the command above and copy include/ and lib/*.a here.
+A build finds them missing - a platform with no shipped binaries, or a working copy
+that never ran this step - falls back to downloading and building OpenSSL itself.
