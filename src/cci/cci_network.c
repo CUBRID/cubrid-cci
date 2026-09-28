@@ -504,9 +504,9 @@ cancel_error:
 }
 
 static int
-net_cancel_request_w_local_port (unsigned char *ip_addr, int port, int pid, unsigned short local_port)
+net_cancel_request_w_local_port (unsigned char *ip_addr, int port, int pid, unsigned short local_port, char *session_id)
 {
-  char msg[10];
+  char msg[10 + SESSION_ID_SIZE];
 
   memset (msg, 0, sizeof (msg));
   strcpy (msg, "QC");
@@ -514,6 +514,9 @@ net_cancel_request_w_local_port (unsigned char *ip_addr, int port, int pid, unsi
   memcpy (msg + 2, (char *) &pid, 4);
   local_port = htons (local_port);
   memcpy (msg + 6, (char *) &local_port, 2);
+  /* byte 8 is the first of the two reserved bytes; see BROKER_SUPPORT_SESSION_CANCEL */
+  msg[8] = BROKER_SUPPORT_SESSION_CANCEL;
+  memcpy (msg + 10, session_id + 8, SESSION_ID_SIZE);
 
   return net_cancel_request_internal (ip_addr, port, msg, sizeof (msg));
 }
@@ -532,18 +535,19 @@ net_cancel_request_wo_local_port (unsigned char *ip_addr, int port, int pid)
 }
 
 static int
-net_cancel_request_ex (unsigned char *ip_addr, int port, int pid)
+net_cancel_request_ex (unsigned char *ip_addr, int port, int pid, char *session_id)
 {
-  char msg[10];
+  char msg[10 + SESSION_ID_SIZE];
 
   msg[0] = 'X';
   msg[1] = '1';
   msg[2] = CAS_CLIENT_CCI;
-  msg[3] = BROKER_RENEWED_ERROR_CODE | BROKER_SUPPORT_HOLDABLE_RESULT;
+  msg[3] = BROKER_RENEWED_ERROR_CODE | BROKER_SUPPORT_HOLDABLE_RESULT | BROKER_SUPPORT_SESSION_CANCEL;
   msg[4] = 0;
   msg[5] = 0;
   pid = htonl (pid);
   memcpy (msg + 6, (char *) &pid, 4);
+  memcpy (msg + 10, session_id + 8, SESSION_ID_SIZE);
 
   return net_cancel_request_internal (ip_addr, port, msg, sizeof (msg));
 }
@@ -570,7 +574,7 @@ net_cancel_request (T_CON_HANDLE * con_handle)
   broker_ver = hm_get_broker_version (con_handle);
   if (hm_broker_understand_the_protocol (broker_ver, PROTOCOL_V4))
     {
-      return net_cancel_request_ex (con_handle->ip_addr, broker_port, con_handle->cas_pid);
+      return net_cancel_request_ex (con_handle->ip_addr, broker_port, con_handle->cas_pid, con_handle->session_id.id);
     }
   else if (hm_broker_understand_the_protocol (broker_ver, PROTOCOL_V1))
     {
@@ -581,7 +585,8 @@ net_cancel_request (T_CON_HANDLE * con_handle)
 	  local_port = ntohs (local_sockaddr.sin_port);
 	}
 
-      return net_cancel_request_w_local_port (con_handle->ip_addr, broker_port, con_handle->cas_pid, local_port);
+      return net_cancel_request_w_local_port (con_handle->ip_addr, broker_port, con_handle->cas_pid, local_port,
+					      con_handle->session_id.id);
     }
   else
     {

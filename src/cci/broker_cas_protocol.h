@@ -113,6 +113,17 @@ extern "C"
 #define BROKER_SUPPORT_HOLDABLE_RESULT          0x40
 /* Do not remove or rename BROKER_RECONNECT_WHEN_SERVER_DOWN */
 #define BROKER_RECONNECT_WHEN_SERVER_DOWN       0x20
+/* Announces that a SESSION_ID_SIZE-byte session id is appended after the standard 10-byte
+ * query-cancel header (QC/X1 only; see KVE-2026-1827 hardening, engine ticket CBRD-27389),
+ * so the broker can verify the cancel request against the CAS-issued session id in addition
+ * to source IP/port. For "X1" this bit is carried in the function-flag byte (msg[3]); for
+ * "QC" it is carried in the first reserved byte (msg[8]).
+ * NOTE: this bit only controls wire framing on this one cancel request; it does not make the
+ * broker's session-id check mandatory, since the request it rides on is unauthenticated and
+ * could simply omit it. The broker instead decides that from this connection's own reported
+ * protocol version (PROTOCOL_V13, below), recorded at connect time.
+ * NOTE: must stay in sync with the engine repository's src/broker/cas_protocol.h. */
+#define BROKER_SUPPORT_SESSION_CANCEL           0x10
 
 /* For backward compatibility */
 #define BROKER_INFO_MAJOR_VERSION               (BROKER_INFO_PROTO_VERSION)
@@ -134,7 +145,7 @@ extern "C"
 #define CAS_STATEMENT_POOLING_ON		1
 
 /* BITMASK for System Parameter */
-#define MASK_ORACLE_COMPAT_NUMBER_BEHAVIOR      0x01    // oracle_compat_number_behavior
+#define MASK_ORACLE_COMPAT_NUMBER_BEHAVIOR      0x01	// oracle_compat_number_behavior
 
 #define SHARD_ID_INVALID 		(-1)
 #define SHARD_ID_UNSUPPORTED	(-2)
@@ -214,7 +225,9 @@ extern "C"
     PROTOCOL_V10 = 10,		/* Secure Broker/CAS using SSL */
     PROTOCOL_V11 = 11,		/* make out resultset */
     PROTOCOL_V12 = 12,		/* Remove trailing zeros from double and float types */
-    CURRENT_PROTOCOL = PROTOCOL_V12
+    PROTOCOL_V13 = 13,		/* CAS-issued session id required (not just optionally checked) for
+				 * QC/X1 query cancel, see KVE-2026-1827 */
+    CURRENT_PROTOCOL = PROTOCOL_V13
   };
   typedef enum t_cas_protocol T_CAS_PROTOCOL;
 
