@@ -144,40 +144,31 @@ execute_process(COMMAND sh -c "echo ${CCI_BUILD_NUMBER}>CCI-VERSION-DIST"
         WORKING_DIRECTORY ${CCI_ROOT_PATH})
 endif(WIN32)
 
-# The other-driver build feeds ODBC and the like, which link the archive under the name
-# the old win/cas_cci/*.vcxproj projects produced - TargetName cas_cci, with a _d suffix
-# on the Debug configurations that cubrid-odbc's Debug builds reference. The stand-alone
-# CCI package keeps cascci, and the option is Windows-only anyway, so the UNIX soname and
-# symlink handling further down is unaffected.
-if(WIN32 AND FOR_OTHER_DRIVER)
-  set(CCI_OUTPUT_NAME cas_cci)
-  set(CCI_DEBUG_POSTFIX "_d")
-else(WIN32 AND FOR_OTHER_DRIVER)
-  set(CCI_OUTPUT_NAME cascci)
-  set(CCI_DEBUG_POSTFIX "")
-endif(WIN32 AND FOR_OTHER_DRIVER)
-message(STATUS "CCI output name: ${CCI_OUTPUT_NAME} (debug postfix: '${CCI_DEBUG_POSTFIX}')")
+set(CCI_PUBLIC_HEADERS "${CCI_DIR}/cas_cci.h" "${CCI_DIR}/compat_dbtran_def.h" "${CCI_DIR}/broker_cas_error.h")
 
-add_library(cascci SHARED ${CASCCI_SOURCES})
-set_target_properties(cascci PROPERTIES SOVERSION "${CCI_MAJOR_VERSION}.${CCI_MINOR_VERSION}")
-set_target_properties(cascci PROPERTIES OUTPUT_NAME ${CCI_OUTPUT_NAME} DEBUG_POSTFIX "${CCI_DEBUG_POSTFIX}")
-set_target_properties(cascci PROPERTIES PUBLIC_HEADER "${CCI_DIR}/cas_cci.h;${CCI_DIR}/compat_dbtran_def.h;${CCI_DIR}/broker_cas_error.h")
-target_include_directories(cascci PRIVATE ${EP_INCLUDES})
-target_link_libraries(cascci LINK_PRIVATE ${EP_LIBS} ${CMAKE_THREAD_LIBS_INIT})
-target_link_libraries(cascci LINK_PRIVATE ${CMAKE_DL_LIBS})
-if(UNIX)
-  target_link_options(cascci PRIVATE "LINKER:--exclude-libs,libssl.a:libcrypto.a")
-endif(UNIX)
+if(NOT FOR_OTHER_DRIVER)
+  add_library(cascci SHARED ${CASCCI_SOURCES})
+  set_target_properties(cascci PROPERTIES SOVERSION "${CCI_MAJOR_VERSION}.${CCI_MINOR_VERSION}")
+  set_target_properties(cascci PROPERTIES PUBLIC_HEADER "${CCI_PUBLIC_HEADERS}")
+  target_include_directories(cascci PRIVATE ${EP_INCLUDES})
+  target_link_libraries(cascci LINK_PRIVATE ${EP_LIBS} ${CMAKE_THREAD_LIBS_INIT})
+  target_link_libraries(cascci LINK_PRIVATE ${CMAKE_DL_LIBS})
+  if(UNIX)
+    target_link_options(cascci PRIVATE "LINKER:--exclude-libs,libssl.a:libcrypto.a")
+  endif(UNIX)
+endif(NOT FOR_OTHER_DRIVER)
 
-if(NOT WITH_CCI)
+if(FOR_OTHER_DRIVER OR (UNIX AND NOT WITH_CCI))
   add_library(cascci_static STATIC ${CASCCI_SOURCES})
   target_include_directories(cascci_static PRIVATE ${EP_INCLUDES})
   target_link_libraries(cascci_static LINK_PRIVATE ${EP_LIBS} ${CMAKE_THREAD_LIBS_INIT})
   target_link_libraries(cascci_static LINK_PRIVATE ${CMAKE_DL_LIBS})
   set_target_properties(cascci_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  set_target_properties(cascci_static PROPERTIES OUTPUT_NAME ${CCI_OUTPUT_NAME} DEBUG_POSTFIX "${CCI_DEBUG_POSTFIX}")
+  set_target_properties(cascci_static PROPERTIES OUTPUT_NAME cascci)
   if(WIN32)
-    set_target_properties(cascci_static PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/static")
+    # Windows only reaches here for /other, and that is the archive cubrid-odbc
+    # links: cas_cci.lib, with the _d suffix its Debug configurations look for.
+    set_target_properties(cascci_static PROPERTIES OUTPUT_NAME cas_cci DEBUG_POSTFIX "_d")
     target_compile_options(cascci_static PRIVATE 
     "$<$<CONFIG:Debug>:/MTd>"
     "$<$<CONFIG:MinSizeRel>:/MT>"
@@ -187,16 +178,21 @@ if(NOT WITH_CCI)
     if(TARGET_PLATFORM_BITS EQUAL 32)
       target_compile_definitions(cascci_static PRIVATE _USE_32BIT_TIME_T)
     endif(TARGET_PLATFORM_BITS EQUAL 32)
-    if(FOR_OTHER_DRIVER)
-      target_compile_definitions(cascci_static PRIVATE CCI_OLEDB)
-      target_compile_definitions(cascci_static PRIVATE CAS_CCI)
-    else(FOR_OTHER_DRIVER)
-      target_compile_definitions(cascci_static PRIVATE CAS_CCI_DL)
-    endif(FOR_OTHER_DRIVER)
-    set_target_properties(cascci_static PROPERTIES LINK_FLAGS_RELEASE "/NODEFAULTLIB:libcmt.lib" LINK_FLAGS_DEBUG "/NODEFAULTLIB:msvcrt.lib")
+    target_compile_definitions(cascci_static PRIVATE CCI_OLEDB)
+    target_compile_definitions(cascci_static PRIVATE CAS_CCI)
+    set(CCI_ARCHIVE_MERGE "")
+    foreach(cci_lib IN LISTS LIBOPENSSL_LIBS)
+      if(EXISTS "${cci_lib}")
+        list(APPEND CCI_ARCHIVE_MERGE "${cci_lib}")
+      else(EXISTS "${cci_lib}")
+        list(APPEND CCI_ARCHIVE_MERGE "${cci_lib}.lib")
+      endif(EXISTS "${cci_lib}")
+    endforeach(cci_lib)
+    set_target_properties(cascci_static PROPERTIES STATIC_LIBRARY_OPTIONS "${CCI_ARCHIVE_MERGE}")
+    message(STATUS "cas_cci archive merges: ${CCI_ARCHIVE_MERGE}")
     target_link_libraries(cascci_static LINK_PRIVATE ws2_32)
   endif(WIN32)
-  
+
   if(DEFINED EP_TARGETS)
     add_dependencies(cascci_static ${EP_TARGETS})
   endif(DEFINED EP_TARGETS)
@@ -205,33 +201,23 @@ if(NOT WITH_CCI)
     LIBRARY DESTINATION ${CUBRID_STATIC_LIBDIR} COMPONENT STATIC_CCI
     ARCHIVE DESTINATION ${CUBRID_STATIC_LIBDIR} COMPONENT STATIC_CCI
   )
-endif(NOT WITH_CCI)
+endif(FOR_OTHER_DRIVER OR (UNIX AND NOT WITH_CCI))
 
-if(WIN32)
+if(WIN32 AND NOT FOR_OTHER_DRIVER)
   if(TARGET_PLATFORM_BITS EQUAL 32)
     target_compile_definitions(cascci PRIVATE _USE_32BIT_TIME_T)
   endif(TARGET_PLATFORM_BITS EQUAL 32)
-  if(FOR_OTHER_DRIVER)
-    target_compile_definitions(cascci PRIVATE CCI_OLEDB)
-    target_compile_definitions(cascci PRIVATE CAS_CCI)
-  else(FOR_OTHER_DRIVER)
-    target_compile_definitions(cascci PRIVATE CAS_CCI_DL)
-  endif(FOR_OTHER_DRIVER)
-  # The LIBRARY statement in cascci.def names the module "cascci", which has to match
-  # the DLL or the linker warns LNK4070 and ignores it - and the other-driver build
-  # renames the DLL to cas_cci. It is optional, and without it the export directory
-  # takes the output file name, which is what it resolved to either way.
-  file(READ "${CCI_ROOT_PATH}/win/cascci/cascci.def" CCI_DEF_TEXT)
-  string(REGEX REPLACE "(^|\n)[ \t]*LIBRARY[^\n]*\n" "\\1" CCI_DEF_TEXT "${CCI_DEF_TEXT}")
-  set(CCI_DEF_FILE "${CMAKE_CURRENT_BINARY_DIR}/cascci_unnamed.def")
-  file(WRITE "${CCI_DEF_FILE}" "${CCI_DEF_TEXT}")
-  set_target_properties(cascci PROPERTIES LINK_FLAGS "/DEF:\"${CCI_DEF_FILE}\"" LINK_FLAGS_RELEASE "/NODEFAULTLIB:libcmt.lib" LINK_FLAGS_DEBUG "/NODEFAULTLIB:msvcrt.lib")
+  target_compile_definitions(cascci PRIVATE CAS_CCI_DL)
+  target_link_options(cascci PRIVATE
+    "/DEF:${CCI_ROOT_PATH}/win/cascci/cascci.def"
+    $<$<CONFIG:RelWithDebInfo>:/NODEFAULTLIB:libcmt.lib>
+    $<$<CONFIG:Debug>:/NODEFAULTLIB:msvcrt.lib>)
   target_link_libraries(cascci LINK_PRIVATE ws2_32)
-endif(WIN32)
+endif(WIN32 AND NOT FOR_OTHER_DRIVER)
 
-if(DEFINED EP_TARGETS)
+if(DEFINED EP_TARGETS AND NOT FOR_OTHER_DRIVER)
   add_dependencies(cascci ${EP_TARGETS})
-endif(DEFINED EP_TARGETS)
+endif(DEFINED EP_TARGETS AND NOT FOR_OTHER_DRIVER)
 
 if(WITH_CCI)
   if(NOT DEFINED CUBRID_CCIDIR)
@@ -247,12 +233,16 @@ else(WITH_CCI)
 endif(WITH_CCI)
 message(STATUS "CCI component install dirs: ${CCI_INSTALL_BINDIR}, ${CCI_INSTALL_LIBDIR}, ${CCI_INSTALL_INCLUDEDIR}")
 
-install(TARGETS cascci
-  RUNTIME DESTINATION ${CCI_INSTALL_BINDIR} COMPONENT CCI
-  LIBRARY DESTINATION ${CCI_INSTALL_LIBDIR} COMPONENT CCI
-  ARCHIVE DESTINATION ${CCI_INSTALL_LIBDIR} COMPONENT CCI
-  PUBLIC_HEADER DESTINATION ${CCI_INSTALL_INCLUDEDIR} COMPONENT CCI
-  )
+if(NOT FOR_OTHER_DRIVER)
+  install(TARGETS cascci
+    RUNTIME DESTINATION ${CCI_INSTALL_BINDIR} COMPONENT CCI
+    LIBRARY DESTINATION ${CCI_INSTALL_LIBDIR} COMPONENT CCI
+    ARCHIVE DESTINATION ${CCI_INSTALL_LIBDIR} COMPONENT CCI
+    PUBLIC_HEADER DESTINATION ${CCI_INSTALL_INCLUDEDIR} COMPONENT CCI
+    )
+else(NOT FOR_OTHER_DRIVER)
+  install(FILES ${CCI_PUBLIC_HEADERS} DESTINATION ${CCI_INSTALL_INCLUDEDIR} COMPONENT CCI)
+endif(NOT FOR_OTHER_DRIVER)
 
 macro(create_link file symlink)
   install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${file} ${symlink})")
