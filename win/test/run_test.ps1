@@ -138,11 +138,11 @@ function Get-DriverFile {
     )
 
     if (-not (Test-Path $Dir)) {
-        throw "[$Dir] is missing. Run build.bat build first."
+        throw "[$Dir] is missing. Run build.bat build first. /other builds are not supported here."
     }
     $found = @(Get-ChildItem -Path $Dir -Filter $Pattern -File -ErrorAction SilentlyContinue)
     if ($found.Count -eq 0) {
-        throw "no $What ($Pattern) under [$Dir]. Run build.bat build first."
+        throw "no $What ($Pattern) under [$Dir]. Run build.bat build first. /other builds are not supported here."
     }
     if ($found.Count -gt 1) {
         throw "[$Dir] holds more than one $What ($($found.Name -join ', ')) - cannot tell which driver to test."

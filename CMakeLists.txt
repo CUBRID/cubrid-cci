@@ -29,6 +29,7 @@ add_subdirectory(cci)
 add_subdirectory(tools)
 
 else(WITH_CCI)
+option(FOR_OTHER_DRIVER "Build the archive for other drivers (ODBC, ...) instead of the shared driver" OFF)
 message(STATUS "======== CCI REPO MAKE ==========") 
 #also searches for modules onto cubrid/cmake
 # add other Find[LIBRARY].cmake scripts in cubrid/cmake
@@ -67,6 +68,7 @@ endif(WIN32)
 
 # FIXME: linux 32bit build mode not working now
 option(ENABLE_32BIT "Build for 32-bit banaries (on 64-bit platform)" OFF)
+
 
 # options for external libraries (BUNDLED, EXTERAL or SYSTEM)
 # openssl library sources URL
