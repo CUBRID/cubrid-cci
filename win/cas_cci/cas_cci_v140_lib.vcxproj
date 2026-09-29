@@ -141,7 +141,7 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\compat;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\win\external\openssl\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\win;..\..\src\broker;..\..\src\compat;..\..\src\cci;..\..\include;..\..\src\api;..\..\src\base;..\..\win\compat;..\..\win\external\openssl\include</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN;WINDOWS;_WIN64;_DEBUG;_CRT_SECURE_NO_WARNINGS;_MT;_LIB;CCI_OLEDB;CAS_CCI;_ALLOW_KEYWORD_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -158,7 +158,7 @@
       </ModuleDefinitionFile>
       <LinkTimeCodeGeneration>true</LinkTimeCodeGeneration>
       <AdditionalLibraryDirectories>..\..\win\external\openssl\lib64_v140;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>libssl.lib;libcrypto.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libssl.lib;libcrypto.lib;Crypt32.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
