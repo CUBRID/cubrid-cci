@@ -29,6 +29,7 @@ add_subdirectory(cci)
 add_subdirectory(tools)
 
 else(WITH_CCI)
+option(FOR_OTHER_DRIVER "Build the archive for other drivers (ODBC, ...) instead of the shared driver" OFF)
 message(STATUS "======== CCI REPO MAKE ==========") 
 #also searches for modules onto cubrid/cmake
 # add other Find[LIBRARY].cmake scripts in cubrid/cmake
@@ -67,6 +68,7 @@ endif(WIN32)
 
 # FIXME: linux 32bit build mode not working now
 option(ENABLE_32BIT "Build for 32-bit banaries (on 64-bit platform)" OFF)
+
 
 # options for external libraries (BUNDLED, EXTERAL or SYSTEM)
 # openssl library sources URL
@@ -495,10 +497,7 @@ if(WITH_LIBOPENSSL STREQUAL "EXTERNAL")
         )
     endif()
   else(UNIX)
-    set(LIBOPENSSL_LIBS ${WINDOWS_EXTERNAL_DIR}/openssl/lib/libssl.lib)
-    list(APPEND LIBOPENSSL_LIBS ${WINDOWS_EXTERNAL_DIR}/openssl/lib/libcrypto.lib)
-    list(APPEND LIBOPENSSL_LIBS Crypt32 Ws2_32)
-    set(LIBOPENSSL_INCLUDES ${WINDOWS_EXTERNAL_DIR}/openssl/include)
+    message(FATAL_ERROR "EXTERNAL option for WITH_LIBOPENSSL is not supported on Windows. Please run win/external/build_openssl.ps1 and configure with the default (BUNDLED).")
   endif(UNIX)
 elseif(WITH_LIBOPENSSL STREQUAL "SYSTEM")
   if(UNIX)
@@ -506,6 +505,8 @@ elseif(WITH_LIBOPENSSL STREQUAL "SYSTEM")
     find_path(LIBOPENSSL_INCLUDES NAMES openssl/conf.h openssl/evp.h PATHS ${WITH_EXTERNAL_HEADERS_PATH} ${WITH_LIBOPENSSL_ROOT_PATH}/include REQUIRED)
     message(STATUS "Found openssl library: ${LIBOPENSSL_LIBS}")
     message(STATUS "Found openssl headers: ${LIBOPENSSL_INCLUDES}")
+  else(UNIX)
+    message(FATAL_ERROR "SYSTEM option for WITH_LIBOPENSSL is not supported on Windows. Please run win/external/build_openssl.ps1 to build the openssl library.")
   endif(UNIX)
   add_custom_target(libopenssl)
 else(WITH_LIBOPENSSL STREQUAL "BUNDLED")

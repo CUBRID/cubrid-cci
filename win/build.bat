@@ -48,6 +48,7 @@ set CPACK_PATH=C:\Program Files\CMake\bin\cpack.exe
 set GIT_PATH=C:\Program Files\Git\bin\git.exe
 set CCI_VERSION_START_DATE=2021-07-14
 set OPTION_CHECK=false
+set FOR_OTHER_DRIVER=false
 
 rem default list is all
 set BUILD_LIST=build
@@ -69,6 +70,7 @@ if /I "%~1" == "/debug"   set "BUILD_MODE=Debug"& set BUILD_TYPE=Debug& set OPTI
 if /I "%~1" == "/release" set "BUILD_MODE=Release"& set BUILD_TYPE=RelWithDebInfo& set OPTION_CHECK=true
 if /I "%~1" == "/vs2017"  set BUILD_GENERATOR="Visual Studio 15 2017"& set BUILD_GEN_VERSION=V141& set OPTION_CHECK=true
 if /I "%~1" == "/vs2015"  set BUILD_GENERATOR="Visual Studio 14 2015"& set BUILD_GEN_VERSION=V140& set OPTION_CHECK=true
+if /I "%~1" == "/other"   set FOR_OTHER_DRIVER=true& set OPTION_CHECK=true
 if "%~1" == "/h"          GOTO :SHOW_USAGE
 if "%~1" == "/?"          GOTO :SHOW_USAGE
 if "%~1" == "/help"       GOTO :SHOW_USAGE
@@ -187,14 +189,15 @@ set BUILD_NUMBER=%MAJOR_VERSION%.%MINOR_VERSION%.%PATCH_VERSION%.%EXTRA_VERSION%
 
 if "%BUILD_TARGET%" == "Win32" (set CUBRID_CCI_PACKAGE_NAME=CUBRID-CCI-Windows-x86-%VERSION%) ELSE set CUBRID_CCI_PACKAGE_NAME=CUBRID-CCI-Windows-x64-%VERSION%
 
-set BUILD_ROOT_DIR=%SOURCE_DIR%\Build_Win
-set BUILD_DIR=%BUILD_ROOT_DIR%\build_%BUILD_MODE%_%BUILD_TARGET%_%BUILD_GEN_VERSION%
+set BUILD_ROOT_DIR=%SOURCE_DIR%\build_win
+if "%FOR_OTHER_DRIVER%" == "true" (set BUILD_TAG=_other) ELSE set BUILD_TAG=
+set BUILD_DIR=%BUILD_ROOT_DIR%\build_%BUILD_MODE%_%BUILD_TARGET%_%BUILD_GEN_VERSION%%BUILD_TAG%
 if NOT EXIST "%BUILD_ROOT_DIR%" md %BUILD_ROOT_DIR%
 if NOT EXIST "%BUILD_DIR%" md %BUILD_DIR%
 
 rem TODO move build_prefix
 set BUILD_ROOT_PREFIX=%SOURCE_DIR%\win\output
-set BUILD_PREFIX=%BUILD_ROOT_PREFIX%\CUBRID_%BUILD_MODE%_%BUILD_TARGET%_%BUILD_GEN_VERSION%
+set BUILD_PREFIX=%BUILD_ROOT_PREFIX%\CUBRID_%BUILD_MODE%_%BUILD_TARGET%_%BUILD_GEN_VERSION%%BUILD_TAG%
 echo Build install directory is [%BUILD_PREFIX%].
 
 if "%DIST_DIR%." == "." set DIST_DIR=%BUILD_ROOT_PREFIX%
@@ -216,11 +219,7 @@ if "%BUILD_TARGET%" == "Win32" (
 )
 echo CMAKE_GENERATOR is [%CMAKE_GENERATOR%]
 
-if "%BUILD_GEN_VERSION%" == "V141" (
-  "%CMAKE_PATH%" -G %CMAKE_GENERATOR% -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DCMAKE_INSTALL_PREFIX=%BUILD_PREFIX% -DPARALLEL_JOBS=10 -DCUBRID_CCI_PACKAGE_NAME=%CUBRID_CCI_PACKAGE_NAME% %SOURCE_DIR%
-) else (
-  "%CMAKE_PATH%" -G %CMAKE_GENERATOR% -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DCMAKE_INSTALL_PREFIX=%BUILD_PREFIX% -DPARALLEL_JOBS=10 -DCUBRID_CCI_PACKAGE_NAME=%CUBRID_CCI_PACKAGE_NAME% -DFOR_OTHER_DRIVER=true %SOURCE_DIR%
-)
+"%CMAKE_PATH%" -G %CMAKE_GENERATOR% -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DCMAKE_INSTALL_PREFIX=%BUILD_PREFIX% -DPARALLEL_JOBS=10 -DCUBRID_CCI_PACKAGE_NAME=%CUBRID_CCI_PACKAGE_NAME% -DFOR_OTHER_DRIVER=%FOR_OTHER_DRIVER% %SOURCE_DIR%
 
 if ERRORLEVEL 1 (echo FAILD. & GOTO :EOF) ELSE echo OK.
 
@@ -244,6 +243,10 @@ set DIST_PKGS=%DIST_PKGS% %CUBRID_CCI_PACKAGE_NAME%.zip
 GOTO :EOF
 
 :BUILD_TEST
+if "%FOR_OTHER_DRIVER%" == "true" (
+  echo The /other build makes the static archive only - there is no driver to test.
+  GOTO :EOF
+)
 echo Testing the driver in %BUILD_PREFIX% ...
 if NOT EXIST "%BUILD_PREFIX%\bin\cascci.dll" (
   echo Nothing to test there - run [build.bat build] first.
@@ -293,6 +296,7 @@ GOTO :EOF
 @echo.  /Release or /Debug Build with release or debug mode (default: Release)
 @echo.  /vs2017            Build with VS2017 (default: VS2017)
 @echo.  /vs2015            Build with VS2015
+@echo.  /other             Build for other drivers (e.g., ODBC)
 @echo.  /help /h /?        Display this help message and exit
 @echo.
 @echo. TARGETS

@@ -2,6 +2,9 @@ build_Release_*/
 build_Debug_*/
 build_x86_64*/
 win/output
+win/cas_cci/Win32
+win/cas_cci/x64/
+
 CMakeSettings.json
 .vs/
 CCI-VERSION-DIST
@@ -12,3 +15,5 @@ win/external/openssl_build/
 
 # build directory of win/test/run_test.ps1
 win/test/out/
+build/
+
