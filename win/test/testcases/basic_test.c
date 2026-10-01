@@ -224,7 +224,7 @@ step_ok (const char *detail)
  * err_buf, and either one can be the interesting half, so both are printed.
  */
 static void
-step_fail (int code, T_CCI_ERROR *err)
+step_fail (int code, T_CCI_ERROR * err)
 {
   failed_steps++;
   printf ("FAIL\n");
@@ -241,7 +241,7 @@ step_fail (int code, T_CCI_ERROR *err)
  * negative CCI error code.
  */
 static int
-exec_sql (int con, const char *sql, T_CCI_ERROR *err)
+exec_sql (int con, const char *sql, T_CCI_ERROR * err)
 {
   int req;
   int affected;
@@ -263,7 +263,7 @@ exec_sql (int con, const char *sql, T_CCI_ERROR *err)
  * code. Rows are printed so a failing comparison can be eyeballed.
  */
 static int
-select_rows (int con, T_CCI_ERROR *err, int print_rows)
+select_rows (int con, T_CCI_ERROR * err, int print_rows)
 {
   int req;
   int res;

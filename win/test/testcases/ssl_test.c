@@ -246,7 +246,7 @@ step_ok (const char *detail)
  * err_buf, and either one can be the interesting half, so both are printed.
  */
 static void
-step_fail (int code, T_CCI_ERROR *err)
+step_fail (int code, T_CCI_ERROR * err)
 {
   char msg[1024];
 
@@ -282,7 +282,7 @@ build_url (char *buf, size_t size, const char *host, int port, const char *db, i
 }
 
 static int
-connect_with_ssl (const char *host, int port, int use_ssl, T_CCI_ERROR *err)
+connect_with_ssl (const char *host, int port, int use_ssl, T_CCI_ERROR * err)
 {
   char url[MAX_URL_LEN];
 
@@ -297,7 +297,7 @@ connect_with_ssl (const char *host, int port, int use_ssl, T_CCI_ERROR *err)
  * statement is not a working SSL connection, so this is what step 1 actually proves.
  */
 static int
-run_query (int con, T_CCI_ERROR *err)
+run_query (int con, T_CCI_ERROR * err)
 {
   int req;
   int res;
