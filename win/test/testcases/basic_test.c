@@ -419,8 +419,7 @@ main (int argc, char *argv[])
 
   step_begin ("insert 3 rows");
   res = exec_sql (con,
-		  "INSERT INTO " TEST_TABLE " (id, name) VALUES "
-		  "(1, 'first'), (2, 'second'), (3, 'third')", &err);
+		  "INSERT INTO " TEST_TABLE " (id, name) VALUES " "(1, 'first'), (2, 'second'), (3, 'third')", &err);
   if (res < 0)
     {
       step_fail (res, &err);

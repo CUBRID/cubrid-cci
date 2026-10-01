@@ -489,8 +489,7 @@ main (int argc, char *argv[])
     }
   else
     {
-      printf ("  -) %-46s%s\n", "useSSL=true against the plain broker",
-	      "SKIP (ssl_port is the plain port)");
+      printf ("  -) %-46s%s\n", "useSSL=true against the plain broker", "SKIP (ssl_port is the plain port)");
     }
 
   printf ("\n");
