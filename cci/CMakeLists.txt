@@ -149,8 +149,7 @@ target_include_directories(cascci PRIVATE ${EP_INCLUDES})
 target_link_libraries(cascci LINK_PRIVATE ${EP_LIBS} ${CMAKE_THREAD_LIBS_INIT})
 target_link_libraries(cascci LINK_PRIVATE ${CMAKE_DL_LIBS})
 if(UNIX)
-  # keep the statically linked libstdc++ private and bind cascci's own function references, so that
-  # cascci and the program that loads it (the CUBRID engine libraries, for dblink) do not take over each other's symbols
+  # the CUBRID engine links cascci for dblink, so neither may take over the other's symbols
   target_link_options(cascci PRIVATE "LINKER:--exclude-libs,libssl.a:libcrypto.a:libstdc++.a" "LINKER:-Bsymbolic-functions")
 endif(UNIX)
 
