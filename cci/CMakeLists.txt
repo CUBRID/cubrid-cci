@@ -215,6 +215,7 @@ if(FOR_OTHER_DRIVER OR (UNIX AND NOT WITH_CCI))
     # Windows only reaches here for /other, so this is the archive cubrid-odbc links:
     # cas_cci.lib, /MT, and OpenSSL
     # folded in the way win/cas_cci/cas_cci_v141_lib.vcxproj has always done it.
+    set_target_properties(cascci_static PROPERTIES OUTPUT_NAME cas_cci)
     target_compile_options(cascci_static PRIVATE
       $<$<CONFIG:Debug>:/MTd>
       $<$<NOT:$<CONFIG:Debug>>:/MT>)
