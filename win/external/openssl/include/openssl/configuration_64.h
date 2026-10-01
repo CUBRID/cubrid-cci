@@ -182,17 +182,17 @@ extern "C" {
  * The following are cipher-specific, but are part of the public API.
  */
 #if !defined(OPENSSL_SYS_UEFI)
-    /* clang-format off */
+/* clang-format off */
 #  undef BN_LLONG
-    /* clang-format on */
-    /* Only one for the following should be defined */
-    /* clang-format off */
+/* clang-format on */
+/* Only one for the following should be defined */
+/* clang-format off */
 #  undef SIXTY_FOUR_BIT_LONG
-    /* clang-format on */
-    /* clang-format off */
+/* clang-format on */
+/* clang-format off */
 #  define SIXTY_FOUR_BIT
-    /* clang-format on */
-    /* clang-format off */
+/* clang-format on */
+/* clang-format off */
 #  undef THIRTY_TWO_BIT
 /* clang-format on */
 #endif
