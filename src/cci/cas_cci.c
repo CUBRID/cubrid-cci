@@ -5907,10 +5907,7 @@ cci_datasource_create (T_CCI_PROPERTIES * prop, T_CCI_ERROR * err_buf)
   if (ds->max_pool_size < ds->pool_size)
     {
       latest_err_buf.err_code = CCI_ER_INVALID_PROPERTY_VALUE;
-      if (latest_err_buf.err_msg)
-	{
-	  snprintf (latest_err_buf.err_msg, 1023, "'max_pool_size' should be greater than 'pool_size'");
-	}
+      snprintf (latest_err_buf.err_msg, 1023, "'max_pool_size' should be greater than 'pool_size'");
       goto create_datasource_error;
     }
 
@@ -6567,10 +6564,7 @@ set_error_buffer (T_CCI_ERROR * err_buf_p, int error, const char *message, ...)
 
 	  va_start (args, message);
 
-	  if (err_buf_p->err_msg != NULL)
-	    {
-	      vsnprintf (err_buf_p->err_msg, sizeof (err_buf_p->err_msg), message, args);
-	    }
+	  vsnprintf (err_buf_p->err_msg, sizeof (err_buf_p->err_msg), message, args);
 
 	  va_end (args);
 	}

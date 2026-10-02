@@ -584,7 +584,13 @@ typedef enum
   CUBRID_STMT_ALTER_STORED_PROCEDURE_OWNER = CUBRID_STMT_ALTER_STORED_PROCEDURE,
   CUBRID_STMT_KILL,
 
-  CUBRID_MAX_STMT_TYPE
+  CUBRID_MAX_STMT_TYPE,
+
+  /* CUBRID_STMT_CALL_SP (0x7e) and CUBRID_STMT_UNKNOWN (0x7f) are defined below as macros and are not
+   * part of the contiguous statement type range above.  This enumerator does not name a statement type;
+   * it only widens the value range of T_CCI_CUBRID_STMT so that those two values are representable.
+   * Without it a C++ compiler may treat "stmt_type == CUBRID_STMT_CALL_SP" as always false.  */
+  CUBRID_STMT_TYPE_VALUE_MAX = 0x7f
 } T_CCI_CUBRID_STMT;
 #endif
 typedef int T_CCI_CONN;
