@@ -149,8 +149,10 @@ target_include_directories(cascci PRIVATE ${EP_INCLUDES})
 target_link_libraries(cascci LINK_PRIVATE ${EP_LIBS} ${CMAKE_THREAD_LIBS_INIT})
 target_link_libraries(cascci LINK_PRIVATE ${CMAKE_DL_LIBS})
 if(UNIX)
-  # the CUBRID engine links cascci for dblink, so neither may take over the other's symbols
-  target_link_options(cascci PRIVATE "LINKER:--exclude-libs,libssl.a:libcrypto.a:libstdc++.a" "LINKER:-Bsymbolic-functions")
+  target_link_options(cascci PRIVATE "LINKER:--exclude-libs,libssl.a:libcrypto.a")
+  # the CUBRID engine links cascci for dblink, so cascci exports only the cci_* API (see cascci.map)
+  target_link_options(cascci PRIVATE "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/cascci.map")
+  set_property(TARGET cascci APPEND PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cascci.map)
 endif(UNIX)
 
 if(NOT WITH_CCI)
