@@ -461,6 +461,7 @@ extern int qe_query_result_copy (T_REQ_HANDLE * req_handle, T_CCI_QUERY_RESULT *
 extern int qe_get_data_str (T_VALUE_BUF * conv_val_buf, T_CCI_U_TYPE u_type, char *col_value_p, int col_val_size,
 			    void *value, int *indicator, bool oracle_style_number_return);
 extern int qe_get_data_bigint (T_CCI_U_TYPE u_type, char *col_value_p, void *value);
+extern int qe_get_data_internal_lob (T_CCI_U_TYPE u_type, char *col_value_p, int col_val_size, void *value);
 extern int qe_get_data_ubigint (T_CCI_U_TYPE u_type, char *col_value_p, void *value);
 extern int qe_get_data_int (T_CCI_U_TYPE u_type, char *col_value_p, void *value);
 extern int qe_get_data_uint (T_CCI_U_TYPE u_type, char *col_value_p, void *value);
@@ -502,6 +503,11 @@ extern int qe_stream_init (T_CON_HANDLE * con_handle, int stream_kind, const cha
 extern int qe_stream_send_data (T_CON_HANDLE * con_handle, const char *data, int data_len, T_CCI_ERROR * err_buf);
 extern int qe_stream_end (T_CON_HANDLE * con_handle, INT64 * result, T_CCI_ERROR * err_buf);
 extern int qe_stream_abort (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf);
+extern int qe_lob_stream_open (T_CON_HANDLE * con_handle, const char *locator, int locator_len,
+                               INT64 start_offset, INT64 * token, T_CCI_ERROR * err_buf);
+extern int qe_lob_stream_read (T_CON_HANDLE * con_handle, INT64 token, char *buf, int size, int *nread,
+                               T_CCI_ERROR * err_buf);
+extern int qe_lob_stream_close (T_CON_HANDLE * con_handle, INT64 token, T_CCI_ERROR * err_buf);
 
 extern int qe_get_shard_info (T_CON_HANDLE * con_handle, T_CCI_SHARD_INFO ** shard_info, T_CCI_ERROR * err_buf);
 extern int qe_shard_info_free (T_CCI_SHARD_INFO * shard_info);

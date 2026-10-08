@@ -82,10 +82,15 @@ EXPORTS
 	cci_cfile_read
 	cci_cfile_free
 	cci_stream_init
+	cci_stream_init_internal_lob
 	cci_stream_send_data
 	cci_stream_end_result
 	cci_stream_end
 	cci_stream_abort
+	cci_bind_internal_lob_upload
+	cci_internal_lob_open
+	cci_internal_lob_read
+	cci_internal_lob_close
 	cci_copy_send_data
 	cci_copy_end
 	cci_get_dbms_type

@@ -134,7 +134,7 @@ extern "C"
 #define CAS_STATEMENT_POOLING_ON		1
 
 /* BITMASK for System Parameter */
-#define MASK_ORACLE_COMPAT_NUMBER_BEHAVIOR      0x01    // oracle_compat_number_behavior
+#define MASK_ORACLE_COMPAT_NUMBER_BEHAVIOR      0x01	// oracle_compat_number_behavior
 
 #define SHARD_ID_INVALID 		(-1)
 #define SHARD_ID_UNSUPPORTED	(-2)
@@ -192,6 +192,9 @@ extern "C"
     CAS_FC_STREAM_END = 46,
     CAS_FC_STREAM_INIT = 47,
     CAS_FC_STREAM_ABORT = 48,
+    CAS_FC_LOB_STREAM_OPEN = 49,
+    CAS_FC_LOB_STREAM_READ = 50,
+    CAS_FC_LOB_STREAM_CLOSE = 51,
 
     /* Whenever you want to introduce a new function code, you must add a corresponding function entry to
      * server_fn_table of both CUBRID and (MySQL, Oracle). */
@@ -207,6 +210,16 @@ extern "C"
  * The function-code values are unchanged (wire-compatible). */
 #define CAS_FC_COPY_SEND_DATA CAS_FC_STREAM_SEND_DATA
 #define CAS_FC_COPY_END       CAS_FC_STREAM_END
+
+/* Largest payload one CAS_FC_LOB_STREAM_READ may ask for.  Both sides bound the request by it so a driver cannot
+ * make CAS allocate an arbitrary buffer. */
+#define INTERNAL_LOB_STREAM_MAX_CHUNK (1024 * 1024)
+
+/* Leading byte of every BLOB/CLOB column sent to a PROTOCOL_V14 driver.  It says whether the payload is a
+ * reference to stored content or the content itself; the column type alone cannot distinguish them, because a
+ * scalar function result (CHAR_TO_CLOB('x')) is a LOB value with no storage behind it. */
+#define INTERNAL_LOB_WIRE_INLINE ((char) 0)
+#define INTERNAL_LOB_WIRE_REF    ((char) 1)
 
   enum t_cas_protocol
   {
@@ -225,7 +238,8 @@ extern "C"
     PROTOCOL_V12 = 12,		/* Remove trailing zeros from double and float types */
     PROTOCOL_V13 = 13,		/* client->server byte-stream transport (CAS_FC_STREAM_*); on develop V13 also
 				 * makes the CAS-issued session id required for QC/X1 query cancel */
-    CURRENT_PROTOCOL = PROTOCOL_V13
+    PROTOCOL_V14 = 14,		/* internal LOB read streaming: the column carries a locator, not the content */
+    CURRENT_PROTOCOL = PROTOCOL_V14
   };
   typedef enum t_cas_protocol T_CAS_PROTOCOL;
 
