@@ -97,7 +97,7 @@ is_ip_literal (const char *host)
 
 /*
  * create_ssl - the TLS session for srv_sock_fd
- *   hostname(in): the broker as written in the URL, or NULL; sent as SNI unless it is an IP literal (RFC 6066)
+ *   hostname(in): the broker as written in the URL, or NULL or ""; sent as SNI unless it is an IP literal (RFC 6066)
  *   verify_host(in): also require the certificate to name hostname - in an IP SAN for an IP literal, else a DNS SAN
  */
 SSL *
@@ -105,7 +105,9 @@ create_ssl (SOCKET srv_sock_fd, SSL_CTX * ctx, const char *hostname, bool verify
 {
   SSL *ssl;
   int server = (int) srv_sock_fd;
-  bool is_ip = (hostname != NULL && is_ip_literal (hostname));
+  /* "" counts as no name: SSL_set1_host() takes it to mean "check no name" */
+  bool has_name = (hostname != NULL && hostname[0] != '\0');
+  bool is_ip = (has_name && is_ip_literal (hostname));
 
   ssl = SSL_new (ctx);
   if (ssl == NULL)
@@ -120,7 +122,7 @@ create_ssl (SOCKET srv_sock_fd, SSL_CTX * ctx, const char *hostname, bool verify
       goto error;
     }
 
-  if (hostname != NULL && !is_ip && SSL_set_tlsext_host_name (ssl, hostname) != 1)
+  if (has_name && !is_ip && SSL_set_tlsext_host_name (ssl, hostname) != 1)
     {
       goto error;
     }
@@ -128,7 +130,7 @@ create_ssl (SOCKET srv_sock_fd, SSL_CTX * ctx, const char *hostname, bool verify
   if (verify_host)
     {
       /* refused rather than skipped: without a name, any certificate the chain check accepts would pass */
-      if (hostname == NULL)
+      if (!has_name)
 	{
 	  goto error;
 	}

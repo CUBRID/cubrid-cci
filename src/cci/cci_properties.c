@@ -453,6 +453,14 @@ cci_conn_set_properties (T_CON_HANDLE * handle, char *properties)
       goto set_properties_end;
     }
 
+  /* "cci:cubrid::port:..." reaches the local host but names nothing a certificate could be checked against */
+  if (handle->sslmode == CCI_SSLMODE_VERIFY_FULL && (handle->hostname == NULL || handle->hostname[0] == '\0'))
+    {
+      cci_url_set_invalid (handle, "sslmode=verify-full needs a host name in the URL");
+      error = CCI_ER_INVALID_URL;
+      goto set_properties_end;
+    }
+
   if (althosts != NULL)
     {
       error = cci_url_set_althosts (handle, althosts);
