@@ -505,6 +505,8 @@ typedef enum
   CCI_ER_INVALID_SHARD = -20046,
 
   CCI_ER_SSL_HANDSHAKE = -21047,
+  /* in the CCI range unlike CCI_ER_SSL_HANDSHAKE above, whose -21047 is kept as is for compatibility */
+  CCI_ER_SSL_CERT_VERIFY = -20047,
 
   CCI_ER_NOT_IMPLEMENTED = -20099,
   CCI_ER_END = -20100

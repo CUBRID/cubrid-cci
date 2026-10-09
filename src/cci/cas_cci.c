@@ -4616,6 +4616,10 @@ cci_get_err_msg_internal (int error)
     case CCI_ER_SSL_HANDSHAKE:
       return "SSL handshake failure";
 
+    case CCI_ER_SSL_CERT_VERIFY:
+      return "The server certificate could not be verified (check sslca, and the certificate's validity period and "
+	"subject alternative names)";
+
     case CAS_ER_INTERNAL:
       return "Not used";
 
