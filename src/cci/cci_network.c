@@ -1103,6 +1103,7 @@ net_check_broker_alive (unsigned char *ip_addr, int port, int timeout_msec, char
 
   if (connect_srv (ip_addr, port, 0, &sock_fd, timeout_msec) < 0)
     {
+      FREE_MEM (con_handle);
       return false;
     }
 
