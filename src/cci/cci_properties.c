@@ -521,14 +521,20 @@ set_properties_end:
   return error;
 }
 
+/*
+ * has_ssl_property - whether the URL properties ask for TLS; read before the handle exists, to pick a pooled one
+ *
+ * Unlike cci_conn_set_properties(), names other than useSSL and sslmode are skipped rather than refused: refusing
+ * them stopped the scan, so "?loginTimeout=1000&useSSL=true" read as plaintext and could be given a pooled
+ * plaintext connection. Invalid values are left for cci_conn_set_properties() to refuse.
+ */
 bool
 has_ssl_property (char *prop)
 {
-  char useSSL = false;
   char buf[4096] = { 0, };
-  T_URL_PROPERTY props[] = {
-    {"useSSL", BOOL_PROPERTY, &useSSL},
-  };
+  char *token, *save_url = NULL;
+  char *sslmode = NULL;
+  bool use_ssl = false;
 
   if (prop == NULL)
     {
@@ -537,12 +543,29 @@ has_ssl_property (char *prop)
 
   snprintf (buf, sizeof (buf), "%s", prop);
 
-  if (cci_url_parse_properties (props, DIM (props), buf) != CCI_ER_NO_ERROR)
+  for (token = strtok_r (buf, "?&", &save_url); token != NULL; token = strtok_r (NULL, "&", &save_url))
     {
-      return false;
+      char *name, *value, *save_property = NULL;
+
+      name = strtok_r (token, "=", &save_property);
+      value = strtok_r (NULL, "=", &save_property);
+      if (name == NULL || value == NULL)
+	{
+	  continue;
+	}
+
+      if (strcasecmp (name, "useSSL") == 0)
+	{
+	  cci_url_get_bool (value, &use_ssl);
+	}
+      else if (strcasecmp (name, "sslmode") == 0)
+	{
+	  sslmode = value;
+	}
     }
 
-  return useSSL;
+  /* the same rule as cci_conn_set_properties(); -1 for an invalid sslmode reads as plaintext */
+  return cci_url_resolve_sslmode (sslmode, use_ssl) > CCI_SSLMODE_DISABLED;
 }
 
 /* indexed by T_CCI_SSLMODE */
