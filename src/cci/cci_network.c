@@ -1663,10 +1663,28 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostnam
 
   if (connect_ssl (ssl) != 1)
     {
+      /* With SSL_VERIFY_PEER a rejected certificate aborts the handshake itself, so the reason is read here, in the
+       * failure branch, and before the SSL object that holds it is freed */
+      long verify_result = SSL_get_verify_result (ssl);
+
       cleanup_ssl (con_handle->ssl_handle.ssl);
       cleanup_ssl_ctx (con_handle->ssl_handle.ctx);
       con_handle->ssl_handle.ssl = NULL;
       con_handle->ssl_handle.ctx = NULL;
+
+      if (con_handle->sslmode >= CCI_SSLMODE_VERIFY_CA && verify_result != X509_V_OK)
+	{
+	  if (err_buf != NULL)
+	    {
+	      err_buf->err_code = CCI_ER_SSL_CERT_VERIFY;
+	      snprintf (err_buf->err_msg, sizeof (err_buf->err_msg),
+			"Cannot verify the server certificate of %s: %s (X509 error %ld)",
+			(hostname != NULL) ? hostname : "the broker", X509_verify_cert_error_string (verify_result),
+			verify_result);
+	    }
+	  return CCI_ER_SSL_CERT_VERIFY;
+	}
+
       return CCI_ER_SSL_HANDSHAKE;
     }
 
