@@ -4709,7 +4709,7 @@ cci_get_err_msg_internal (int error)
 
     case CAS_ER_SSL_TYPE_NOT_ALLOWED:
       return
-	"The requested SSL mode is not permitted, the CAS server is running in a different mode (check useSSL property).";
+	"The requested SSL mode is not permitted, the CAS server is running in a different mode (check the sslmode or useSSL property).";
 
     case CAS_ER_IS:
       return "Not used";
