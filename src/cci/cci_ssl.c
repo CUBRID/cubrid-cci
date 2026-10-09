@@ -30,6 +30,7 @@
 
 #ident "$Id$"
 #include "cci_ssl.h"
+#include <openssl/x509v3.h>
 
 /* TLS 1.2 key exchange is ephemeral only: !kRSA drops static RSA, which gives no forward secrecy.
  * The same list as the broker (CAS_SSL_CIPHER_LIST in cas_ssl.c). */
@@ -80,11 +81,31 @@ set_ssl_ctx_verify (SSL_CTX * ctx, const char *ca_file)
 }
 
 
+static bool
+is_ip_literal (const char *host)
+{
+  ASN1_OCTET_STRING *ip = a2i_IPADDRESS (host);
+
+  if (ip == NULL)
+    {
+      return false;
+    }
+
+  ASN1_OCTET_STRING_free (ip);
+  return true;
+}
+
+/*
+ * create_ssl - the TLS session for srv_sock_fd
+ *   hostname(in): the broker as written in the URL, or NULL; sent as SNI unless it is an IP literal (RFC 6066)
+ *   verify_host(in): also require the certificate to name hostname - in an IP SAN for an IP literal, else a DNS SAN
+ */
 SSL *
-create_ssl (SOCKET srv_sock_fd, SSL_CTX * ctx)
+create_ssl (SOCKET srv_sock_fd, SSL_CTX * ctx, const char *hostname, bool verify_host)
 {
   SSL *ssl;
   int server = (int) srv_sock_fd;
+  bool is_ip = (hostname != NULL && is_ip_literal (hostname));
 
   ssl = SSL_new (ctx);
   if (ssl == NULL)
@@ -96,10 +117,34 @@ create_ssl (SOCKET srv_sock_fd, SSL_CTX * ctx)
   if (SSL_set_fd (ssl, server) == 0)
     {
       /*The operation failed.Check the error stack to find out why. */
-      return NULL;
+      goto error;
+    }
+
+  if (hostname != NULL && !is_ip && SSL_set_tlsext_host_name (ssl, hostname) != 1)
+    {
+      goto error;
+    }
+
+  if (verify_host)
+    {
+      /* refused rather than skipped: without a name, any certificate the chain check accepts would pass */
+      if (hostname == NULL)
+	{
+	  goto error;
+	}
+
+      if (is_ip ? X509_VERIFY_PARAM_set1_ip_asc (SSL_get0_param (ssl), hostname) != 1
+	  : SSL_set1_host (ssl, hostname) != 1)
+	{
+	  goto error;
+	}
     }
 
   return ssl;
+
+error:
+  SSL_free (ssl);
+  return NULL;
 }
 
 int

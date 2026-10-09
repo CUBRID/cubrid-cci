@@ -131,7 +131,7 @@ static int net_cancel_request_wo_local_port (unsigned char *ip_addr, int port, i
 static int net_status_request (unsigned char *ip_addr, int port, int cas_pid, char *sessionid, int timeout_msec);
 static int net_status_recv_stream (SOCKET sock_fd, char *buf, int size, int timeout);
 
-static int ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, T_CCI_ERROR * err_buf);
+static int ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostname, T_CCI_ERROR * err_buf);
 /************************************************************************
  * INTERFACE VARIABLES							*
  ************************************************************************/
@@ -169,6 +169,7 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
   int new_port;
   char *msg_buf, *info, *p, *ver_ptr;
   unsigned char *ip_addr;
+  char *hostname;
   int port;
   int body_len;
   T_BROKER_VERSION broker_ver;
@@ -249,11 +250,13 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
   if (host_id < 0)
     {
       ip_addr = con_handle->ip_addr;
+      hostname = con_handle->hostname;
       port = con_handle->port;
     }
   else
     {
       ip_addr = con_handle->alter_hosts[host_id].ip_addr;
+      hostname = con_handle->alter_hosts[host_id].hostname;
       port = con_handle->alter_hosts[host_id].port;
     }
   ret_value = connect_srv (ip_addr, port, con_handle->is_retry, &srv_sock_fd, login_timeout);
@@ -303,7 +306,7 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
     {
       MUTEX_LOCK (create_ssl_mutex);
 
-      ret_value = ssl_session_init (con_handle, srv_sock_fd, err_buf);
+      ret_value = ssl_session_init (con_handle, srv_sock_fd, hostname, err_buf);
       if (ret_value < 0)
 	{
 	  MUTEX_UNLOCK (create_ssl_mutex);
@@ -1120,7 +1123,7 @@ net_check_broker_alive (unsigned char *ip_addr, int port, int timeout_msec, char
   if (con_handle->useSSL == USESSL)
     {
       MUTEX_LOCK (create_ssl_mutex);
-      if (ssl_session_init (con_handle, sock_fd, NULL) < 0)
+      if (ssl_session_init (con_handle, sock_fd, NULL, NULL) < 0)
 	{
 	  MUTEX_UNLOCK (create_ssl_mutex);
 	  goto finish_health_check;
@@ -1605,8 +1608,12 @@ connect_retry:
   return CCI_ER_NO_ERROR;
 }
 
+/*
+ * ssl_session_init - TLS over sock_fd as con_handle->sslmode asks
+ *   hostname(in): the broker as written in the URL; NULL for the health check, which never verifies
+ */
 static int
-ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, T_CCI_ERROR * err_buf)
+ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostname, T_CCI_ERROR * err_buf)
 {
   SSL *ssl = NULL;
   SSL_CTX *ctx = NULL;
@@ -1644,7 +1651,7 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, T_CCI_ERROR * err_b
       return CCI_ER_INVALID_URL;
     }
 
-  ssl = create_ssl (sock_fd, con_handle->ssl_handle.ctx);
+  ssl = create_ssl (sock_fd, con_handle->ssl_handle.ctx, hostname, con_handle->sslmode == CCI_SSLMODE_VERIFY_FULL);
   if (ssl == NULL)
     {
       cleanup_ssl_ctx (con_handle->ssl_handle.ctx);
