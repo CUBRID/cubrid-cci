@@ -1634,16 +1634,12 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostnam
 
   if (con_handle->sslmode >= CCI_SSLMODE_VERIFY_CA && set_ssl_ctx_verify (ctx, con_handle->ssl_ca_file) != 1)
     {
+      /* checked when the URL was parsed, so only a file changed since then gets here */
       if (err_buf != NULL)
 	{
-	  /* the first error is the cause: errno for a file that cannot be opened, else what OpenSSL found in it */
-	  unsigned long e = ERR_peek_error ();
-	  const char *reason =
-	    (ERR_GET_LIB (e) == ERR_LIB_SYS) ? strerror (ERR_GET_REASON (e)) : ERR_reason_error_string (e);
-
 	  err_buf->err_code = CCI_ER_INVALID_URL;
 	  snprintf (err_buf->err_msg, sizeof (err_buf->err_msg), "Cannot read sslca file %s (%s)",
-		    con_handle->ssl_ca_file, (reason != NULL) ? reason : "unknown reason");
+		    con_handle->ssl_ca_file, cci_ssl_error_reason ());
 	}
       ERR_clear_error ();
       cleanup_ssl_ctx (con_handle->ssl_handle.ctx);

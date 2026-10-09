@@ -370,6 +370,7 @@ extern void hm_ssl_free (T_CON_HANDLE * con_handle);
 extern int cci_url_peek_sslmode (char *prop, char *sslca, int sslca_size);
 extern int cci_sslmode_from_label (const char *label);
 extern const char *cci_sslmode_label (int sslmode);
+extern const char *cci_ssl_error_reason (void);
 /************************************************************************
  * PUBLIC VARIABLES							*
  ************************************************************************/

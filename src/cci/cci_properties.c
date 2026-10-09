@@ -55,6 +55,7 @@
 #include "porting.h"
 #include "cci_handle_mng.h"
 #include "cci_log.h"
+#include <openssl/err.h>
 
 /*
  * PRIVATE DEFINITIONS
@@ -84,6 +85,7 @@ static int cci_url_get_int (char *str, int *value);
 static int cci_url_get_bool (char *str, bool * value);
 static int cci_url_resolve_sslmode (const char *sslmode, bool use_ssl);
 static void cci_url_set_invalid (T_CON_HANDLE * handle, const char *format, ...);
+static bool cci_url_check_sslca (T_CON_HANDLE * handle);
 static void cci_shuffle_althosts (T_CON_HANDLE * handle);
 
 /*
@@ -175,6 +177,28 @@ cci_url_set_invalid (T_CON_HANDLE * handle, const char *format, ...)
   va_start (args, format);
   vsnprintf (handle->err_buf.err_msg, sizeof (handle->err_buf.err_msg), format, args);
   va_end (args);
+}
+
+/*
+ * cci_url_check_sslca - whether the sslca file can be read and holds a certificate
+ *
+ * Read when the URL is parsed, before the broker is reached, as JDBC does: finding it only at the TLS handshake
+ * left the CAS waiting for a handshake that never started.
+ */
+static bool
+cci_url_check_sslca (T_CON_HANDLE * handle)
+{
+  X509_STORE *store = X509_STORE_new ();
+  bool readable = (store != NULL && X509_STORE_load_file (store, handle->ssl_ca_file) == 1);
+
+  if (!readable)
+    {
+      cci_url_set_invalid (handle, "Cannot read sslca file %s (%s)", handle->ssl_ca_file, cci_ssl_error_reason ());
+    }
+
+  ERR_clear_error ();
+  X509_STORE_free (store);
+  return readable;
 }
 
 static int
@@ -461,6 +485,12 @@ cci_conn_set_properties (T_CON_HANDLE * handle, char *properties)
       goto set_properties_end;
     }
 
+  if (handle->sslmode >= CCI_SSLMODE_VERIFY_CA && !cci_url_check_sslca (handle))
+    {
+      error = CCI_ER_INVALID_URL;
+      goto set_properties_end;
+    }
+
   if (althosts != NULL)
     {
       error = cci_url_set_althosts (handle, althosts);
@@ -625,4 +655,17 @@ cci_sslmode_label (int sslmode)
     }
 
   return cci_sslmode_labels[sslmode];
+}
+
+/*
+ * cci_ssl_error_reason - why the last OpenSSL call failed, from the first error it queued: errno for a file that
+ *			  cannot be opened, else what OpenSSL found wrong
+ */
+const char *
+cci_ssl_error_reason (void)
+{
+  unsigned long e = ERR_peek_error ();
+  const char *reason = (ERR_GET_LIB (e) == ERR_LIB_SYS) ? strerror (ERR_GET_REASON (e)) : ERR_reason_error_string (e);
+
+  return (reason != NULL) ? reason : "unknown reason";
 }
