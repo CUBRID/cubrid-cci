@@ -227,7 +227,9 @@ static const char *datasource_key[] = {
   CCI_DS_PROPERTY_DEFAULT_ISOLATION,
   CCI_DS_PROPERTY_DEFAULT_LOCK_TIMEOUT,
   CCI_DS_PROPERTY_MAX_POOL_SIZE,
-  CCI_DS_PROPERTY_USESSL
+  CCI_DS_PROPERTY_USESSL,
+  CCI_DS_PROPERTY_SSLMODE,
+  CCI_DS_PROPERTY_SSLCA
 };
 
 CCI_MALLOC_FUNCTION cci_malloc = malloc;
@@ -5714,6 +5716,7 @@ cci_datasource_make_url (T_CCI_PROPERTIES * prop, char *new_url, char *url, T_CC
   int login_timeout = -1, query_timeout = -1;
   bool disconnect_on_query_timeout;
   bool useSSL = false;
+  char *sslmode, *sslca;
   int rlen, n;
 
   assert (new_url && url);
@@ -5832,6 +5835,50 @@ cci_datasource_make_url (T_CCI_PROPERTIES * prop, char *new_url, char *url, T_CC
       delim = '&';
 
       reset_error_buffer (err_buf);
+    }
+
+  /* a getter above may have left CCI_ER_NO_PROPERTY, which set_error_buffer () would not overwrite */
+  reset_error_buffer (err_buf);
+
+  sslmode = cci_property_get (prop, datasource_key[CCI_DS_KEY_SSLMODE]);
+  if (sslmode != NULL)
+    {
+      if (cci_sslmode_from_label (sslmode) < 0)
+	{
+	  set_error_buffer (err_buf, CCI_ER_INVALID_PROPERTY_VALUE, "sslmode parsing : %s", sslmode);
+	  return false;
+	}
+
+      str = datasource_key[CCI_DS_KEY_SSLMODE];
+
+      n = snprintf (append_str, rlen, "%c%s=%s", delim, str, sslmode);
+      assert (rlen >= 0);
+      if (rlen < n || n < 0)
+	{
+	  set_error_buffer (err_buf, CCI_ER_NO_MORE_MEMORY, NULL);
+	  return false;
+	}
+      strcat (new_url, append_str);
+      rlen -= n;
+      delim = '&';
+    }
+
+  /* the file itself is checked when a pooled connection parses the URL (cci_conn_set_properties) */
+  sslca = cci_property_get (prop, datasource_key[CCI_DS_KEY_SSLCA]);
+  if (sslca != NULL)
+    {
+      str = datasource_key[CCI_DS_KEY_SSLCA];
+
+      n = snprintf (append_str, rlen, "%c%s=%s", delim, str, sslca);
+      assert (rlen >= 0);
+      if (rlen < n || n < 0)
+	{
+	  set_error_buffer (err_buf, CCI_ER_NO_MORE_MEMORY, NULL);
+	  return false;
+	}
+      strcat (new_url, append_str);
+      rlen -= n;
+      delim = '&';
     }
 
   reset_error_buffer (err_buf);
