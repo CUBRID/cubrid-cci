@@ -205,6 +205,17 @@ typedef struct
   bool is_connected;
 } T_SSL_HANDLE;
 
+/* TLS mode from the sslmode URL property; same names and order as JDBC (cubrid.jdbc.jci.SslMode).
+ * Declared here rather than in cci_ssl.h: cci_properties.c cannot include cci_ssl.h on Windows, where its
+ * <winsock2.h> would follow the <windows.h> that porting.h has already pulled in. */
+typedef enum
+{
+  CCI_SSLMODE_DISABLED = 0,
+  CCI_SSLMODE_REQUIRED,		/* what useSSL=true has always done: encrypt, verify nothing */
+  CCI_SSLMODE_VERIFY_CA,
+  CCI_SSLMODE_VERIFY_FULL
+} T_CCI_SSLMODE;
+
 typedef struct
 {
   int id;
@@ -353,6 +364,8 @@ extern void hm_force_close_connection (T_CON_HANDLE * con_handle);
 extern void hm_ssl_free (T_CON_HANDLE * con_handle);
 
 extern bool has_ssl_property (char *prop);
+extern int cci_sslmode_from_label (const char *label);
+extern const char *cci_sslmode_label (int sslmode);
 /************************************************************************
  * PUBLIC VARIABLES							*
  ************************************************************************/

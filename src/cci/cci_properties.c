@@ -468,3 +468,44 @@ has_ssl_property (char *prop)
 
   return useSSL;
 }
+
+/* indexed by T_CCI_SSLMODE */
+static const char *cci_sslmode_labels[] = {
+  "disabled", "required", "verify-ca", "verify-full"
+};
+
+/*
+ * cci_sslmode_from_label - the T_CCI_SSLMODE written as sslmode=<label>, compared case-insensitively
+ *   return: the mode, or -1 when the label names none
+ */
+int
+cci_sslmode_from_label (const char *label)
+{
+  int i;
+
+  if (label == NULL)
+    {
+      return -1;
+    }
+
+  for (i = 0; i < (int) DIM (cci_sslmode_labels); i++)
+    {
+      if (strcasecmp (label, cci_sslmode_labels[i]) == 0)
+	{
+	  return i;
+	}
+    }
+
+  return -1;
+}
+
+const char *
+cci_sslmode_label (int sslmode)
+{
+  if (sslmode < 0 || sslmode >= (int) DIM (cci_sslmode_labels))
+    {
+      return "unknown";
+    }
+
+  return cci_sslmode_labels[sslmode];
+}
