@@ -196,6 +196,7 @@ typedef struct
 {
   unsigned char ip_addr[4];
   int port;
+  char *hostname;		/* as written in the URL, for the certificate check; NULL in host_status[] */
 } T_ALTER_HOST;
 
 typedef struct
@@ -225,6 +226,7 @@ typedef struct
   CCI_AUTOCOMMIT_MODE autocommit_mode;
   unsigned char ip_addr[4];
   int port;
+  char *hostname;		/* as written in the URL; ip_addr is resolved from it */
   char *db_name;
   char *db_user;
   char *db_passwd;
@@ -272,6 +274,8 @@ typedef struct
   char log_trace_api;
   char log_trace_network;
   char useSSL;
+  T_CCI_SSLMODE sslmode;
+  char *ssl_ca_file;
   char __gateway;
   char oracle_style_number_return;
 

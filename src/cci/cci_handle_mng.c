@@ -1254,6 +1254,12 @@ init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_nam
 
   memcpy (con_handle->ip_addr, ip_addr, 4);
   con_handle->port = port;
+  /* checked unlike the others: a missing name would later turn off the host name check without a word */
+  ALLOC_COPY (con_handle->hostname, ip_str);
+  if (con_handle->hostname == NULL)
+    {
+      return CCI_ER_NO_MORE_MEMORY;
+    }
   ALLOC_COPY (con_handle->db_name, db_name);
   ALLOC_COPY (con_handle->db_user, db_user);
   ALLOC_COPY (con_handle->db_passwd, db_passwd);
@@ -1272,6 +1278,7 @@ init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_nam
   con_handle->req_handle_table = (T_REQ_HANDLE **) MALLOC (sizeof (T_REQ_HANDLE *) * con_handle->max_req_handle);
   if (con_handle->req_handle_table == NULL)
     {
+      FREE_MEM (con_handle->hostname);
       FREE_MEM (con_handle->db_name);
       FREE_MEM (con_handle->db_user);
       FREE_MEM (con_handle->db_passwd);
@@ -1282,6 +1289,7 @@ init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_nam
   con_handle->stmt_pool = cci_mht_create (0, 1000, cci_mht_5strhash, cci_mht_strcasecmpeq);
   if (con_handle->stmt_pool == NULL)
     {
+      FREE_MEM (con_handle->hostname);
       FREE_MEM (con_handle->db_name);
       FREE_MEM (con_handle->db_user);
       FREE_MEM (con_handle->db_passwd);
@@ -1323,6 +1331,8 @@ init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_nam
   con_handle->ssl_handle.ssl = NULL;
   con_handle->ssl_handle.ctx = NULL;
   con_handle->useSSL = useSSL;
+  con_handle->sslmode = useSSL ? CCI_SSLMODE_REQUIRED : CCI_SSLMODE_DISABLED;
+  con_handle->ssl_ca_file = NULL;
   con_handle->__gateway = false;
   con_handle->deferred_max_close_handle_count = DEFERRED_CLOSE_HANDLE_ALLOC_SIZE;
   con_handle->deferred_close_handle_list = (int *) MALLOC (sizeof (int) * con_handle->deferred_max_close_handle_count);
@@ -1393,6 +1403,14 @@ new_req_handle_id (T_CON_HANDLE * con_handle)
 static void
 con_handle_content_free (T_CON_HANDLE * con_handle)
 {
+  int i;
+
+  FREE_MEM (con_handle->hostname);
+  for (i = 0; i < ALTER_HOST_MAX_SIZE; i++)
+    {
+      FREE_MEM (con_handle->alter_hosts[i].hostname);
+    }
+  FREE_MEM (con_handle->ssl_ca_file);
   FREE_MEM (con_handle->db_name);
   FREE_MEM (con_handle->db_user);
   FREE_MEM (con_handle->db_passwd);
