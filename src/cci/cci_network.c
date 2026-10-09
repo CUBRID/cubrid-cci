@@ -1711,11 +1711,16 @@ static const char *
 ssl_handshake_failure_reason (void)
 {
   unsigned long e = ERR_peek_error ();
+  int reason = (ERR_GET_LIB (e) == ERR_LIB_SSL) ? ERR_GET_REASON (e) : 0;
 
-  if (e == 0 || ERR_GET_REASON (e) == SSL_R_UNEXPECTED_EOF_WHILE_READING
-      || ERR_GET_REASON (e) == SSL_R_WRONG_VERSION_NUMBER)
+  /* the same words as JDBC (handshakeFailureReason () in BrokerHandler.java) for the same failures */
+  if (e == 0 || reason == SSL_R_UNEXPECTED_EOF_WHILE_READING || reason == SSL_R_WRONG_VERSION_NUMBER)
     {
       return "the broker did not start TLS; its CAS log has the cause, such as an expired or unreadable certificate";
+    }
+  if (reason == SSL_R_SSLV3_ALERT_HANDSHAKE_FAILURE)
+    {
+      return "the driver and the broker have no TLS version or cipher suite in common";
     }
 
   return cci_ssl_error_reason ();
