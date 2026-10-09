@@ -132,6 +132,7 @@ static int net_status_request (unsigned char *ip_addr, int port, int cas_pid, ch
 static int net_status_recv_stream (SOCKET sock_fd, char *buf, int size, int timeout);
 
 static int ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostname, T_CCI_ERROR * err_buf);
+static const char *ssl_handshake_failure_reason (void);
 /************************************************************************
  * INTERFACE VARIABLES							*
  ************************************************************************/
@@ -1662,6 +1663,7 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostnam
       /* With SSL_VERIFY_PEER a rejected certificate aborts the handshake itself, so the reason is read here, in the
        * failure branch, and before the SSL object that holds it is freed */
       long verify_result = SSL_get_verify_result (ssl);
+      const char *reason = ssl_handshake_failure_reason ();
 
       cleanup_ssl (con_handle->ssl_handle.ssl);
       cleanup_ssl_ctx (con_handle->ssl_handle.ctx);
@@ -1681,9 +1683,36 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostnam
 	  return CCI_ER_SSL_CERT_VERIFY;
 	}
 
+      if (err_buf != NULL)
+	{
+	  err_buf->err_code = CCI_ER_SSL_HANDSHAKE;
+	  snprintf (err_buf->err_msg, sizeof (err_buf->err_msg), "SSL handshake failure: %s", reason);
+	}
+      ERR_clear_error ();
       return CCI_ER_SSL_HANDSHAKE;
     }
 
   con_handle->ssl_handle.is_connected = true;
   return err_code;
+}
+
+/*
+ * ssl_handshake_failure_reason - why a handshake failed, for a failure other than a rejected certificate
+ *
+ * A CAS that cannot load its certificate or key answers the ClientHello with a plaintext CAS error and closes, so
+ * the client sees a record that is not TLS ("wrong version number") or the connection ending. Either way the cause
+ * is only in the CAS log.
+ */
+static const char *
+ssl_handshake_failure_reason (void)
+{
+  unsigned long e = ERR_peek_error ();
+
+  if (e == 0 || ERR_GET_REASON (e) == SSL_R_UNEXPECTED_EOF_WHILE_READING
+      || ERR_GET_REASON (e) == SSL_R_WRONG_VERSION_NUMBER)
+    {
+      return "the broker did not start TLS; its CAS log has the cause, such as an expired or unreadable certificate";
+    }
+
+  return cci_ssl_error_reason ();
 }
