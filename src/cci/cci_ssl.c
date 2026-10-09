@@ -76,6 +76,9 @@ set_ssl_ctx_verify (SSL_CTX * ctx, const char *ca_file)
       return 0;
     }
 
+  /* Every certificate in ca_file is an anchor, not only self-signed roots: an intermediate CA, or the broker's own
+   * certificate, put there is trusted as JDBC (JSSE) trusts it. The chain below it is checked as usual. */
+  X509_VERIFY_PARAM_set_flags (SSL_CTX_get0_param (ctx), X509_V_FLAG_PARTIAL_CHAIN);
   SSL_CTX_set_verify (ctx, SSL_VERIFY_PEER, NULL);
   return 1;
 }
