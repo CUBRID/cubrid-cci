@@ -131,7 +131,7 @@ static int net_cancel_request_wo_local_port (unsigned char *ip_addr, int port, i
 static int net_status_request (unsigned char *ip_addr, int port, int cas_pid, char *sessionid, int timeout_msec);
 static int net_status_recv_stream (SOCKET sock_fd, char *buf, int size, int timeout);
 
-static int ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd);
+static int ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, T_CCI_ERROR * err_buf);
 /************************************************************************
  * INTERFACE VARIABLES							*
  ************************************************************************/
@@ -303,7 +303,7 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
     {
       MUTEX_LOCK (create_ssl_mutex);
 
-      ret_value = ssl_session_init (con_handle, srv_sock_fd);
+      ret_value = ssl_session_init (con_handle, srv_sock_fd, err_buf);
       if (ret_value < 0)
 	{
 	  MUTEX_UNLOCK (create_ssl_mutex);
@@ -1120,7 +1120,7 @@ net_check_broker_alive (unsigned char *ip_addr, int port, int timeout_msec, char
   if (con_handle->useSSL == USESSL)
     {
       MUTEX_LOCK (create_ssl_mutex);
-      if (ssl_session_init (con_handle, sock_fd) < 0)
+      if (ssl_session_init (con_handle, sock_fd, NULL) < 0)
 	{
 	  MUTEX_UNLOCK (create_ssl_mutex);
 	  goto finish_health_check;
@@ -1606,7 +1606,7 @@ connect_retry:
 }
 
 static int
-ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd)
+ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, T_CCI_ERROR * err_buf)
 {
   SSL *ssl = NULL;
   SSL_CTX *ctx = NULL;
@@ -1624,6 +1624,25 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd)
     }
 
   con_handle->ssl_handle.ctx = ctx;
+
+  if (con_handle->sslmode >= CCI_SSLMODE_VERIFY_CA && set_ssl_ctx_verify (ctx, con_handle->ssl_ca_file) != 1)
+    {
+      if (err_buf != NULL)
+	{
+	  /* the first error is the cause: errno for a file that cannot be opened, else what OpenSSL found in it */
+	  unsigned long e = ERR_peek_error ();
+	  const char *reason =
+	    (ERR_GET_LIB (e) == ERR_LIB_SYS) ? strerror (ERR_GET_REASON (e)) : ERR_reason_error_string (e);
+
+	  err_buf->err_code = CCI_ER_INVALID_URL;
+	  snprintf (err_buf->err_msg, sizeof (err_buf->err_msg), "Cannot read sslca file %s (%s)",
+		    con_handle->ssl_ca_file, (reason != NULL) ? reason : "unknown reason");
+	}
+      ERR_clear_error ();
+      cleanup_ssl_ctx (con_handle->ssl_handle.ctx);
+      con_handle->ssl_handle.ctx = NULL;
+      return CCI_ER_INVALID_URL;
+    }
 
   ssl = create_ssl (sock_fd, con_handle->ssl_handle.ctx);
   if (ssl == NULL)

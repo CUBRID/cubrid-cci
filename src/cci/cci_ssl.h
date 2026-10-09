@@ -57,6 +57,7 @@
 #define USESSL          1
 
 extern SSL_CTX *create_ssl_ctx ();
+extern int set_ssl_ctx_verify (SSL_CTX * ctx, const char *ca_file);
 extern SSL *create_ssl (SOCKET srv_sock_fd, SSL_CTX * ctx);
 extern int connect_ssl (SSL * ssl);
 extern void cleanup_ssl (SSL * ssl);
