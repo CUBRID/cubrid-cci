@@ -32,9 +32,10 @@
 #include "cci_ssl.h"
 #include <openssl/x509v3.h>
 
-/* TLS 1.2 key exchange is ephemeral only: !kRSA drops static RSA, which gives no forward secrecy.
+/* TLS 1.2 key exchange is ECDHE only: !kRSA drops static RSA, which gives no forward secrecy, and DHE is left out
+ * as the broker leaves it out - it has no DH parameters, and DHE costs the server far more than ECDHE.
  * The same list as the broker (CAS_SSL_CIPHER_LIST in cas_ssl.c). */
-#define CCI_SSL_CIPHER_LIST	"ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:!aNULL:!kRSA"
+#define CCI_SSL_CIPHER_LIST	"ECDHE+AESGCM:ECDHE+CHACHA20:!aNULL:!kRSA"
 
 SSL_CTX *
 create_ssl_ctx ()
