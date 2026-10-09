@@ -42,6 +42,7 @@
 #include "config.h"
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #if defined(WINDOWS)
 #include <direct.h>
 #else
@@ -81,6 +82,8 @@ static int cci_url_set_properties (T_URL_PROPERTY props[], int len, char *name, 
 static int cci_url_set_value (T_URL_PROPERTY * property, char *value);
 static int cci_url_get_int (char *str, int *value);
 static int cci_url_get_bool (char *str, bool * value);
+static int cci_url_resolve_sslmode (const char *sslmode, bool use_ssl);
+static void cci_url_set_invalid (T_CON_HANDLE * handle, const char *format, ...);
 static void cci_shuffle_althosts (T_CON_HANDLE * handle);
 
 /*
@@ -143,6 +146,35 @@ cci_url_get_int (char *str, int *value)
 
   *value = v;
   return CCI_ER_NO_ERROR;
+}
+
+/*
+ * cci_url_resolve_sslmode - the mode a URL asks for: sslmode when given, otherwise derived from useSSL
+ *   return: T_CCI_SSLMODE, or -1 when sslmode names no mode
+ */
+static int
+cci_url_resolve_sslmode (const char *sslmode, bool use_ssl)
+{
+  if (sslmode == NULL)
+    {
+      return use_ssl ? CCI_SSLMODE_REQUIRED : CCI_SSLMODE_DISABLED;
+    }
+
+  return cci_sslmode_from_label (sslmode);
+}
+
+/*
+ * cci_url_set_invalid - why the URL was refused, left in the handle for cci_connect_with_url_internal() to pass on
+ */
+static void
+cci_url_set_invalid (T_CON_HANDLE * handle, const char *format, ...)
+{
+  va_list args;
+
+  handle->err_buf.err_code = CCI_ER_INVALID_URL;
+  va_start (args, format);
+  vsnprintf (handle->err_buf.err_msg, sizeof (handle->err_buf.err_msg), format, args);
+  va_end (args);
 }
 
 static int
@@ -249,6 +281,13 @@ cci_url_set_althosts (T_CON_HANDLE * handle, char *data)
 
   memcpy (handle->alter_hosts[0].ip_addr, handle->ip_addr, 4);
   handle->alter_hosts[0].port = handle->port;
+  /* freed first: a pooled handle parses its properties again on reuse */
+  FREE_MEM (hosts[0].hostname);
+  ALLOC_COPY (hosts[0].hostname, handle->hostname);
+  if (hosts[0].hostname == NULL)
+    {
+      return CCI_ER_NO_MORE_MEMORY;
+    }
 
   for (i = 1;; i++, data = NULL)
     {
@@ -275,6 +314,12 @@ cci_url_set_althosts (T_CON_HANDLE * handle, char *data)
       if (error < 0)
 	{
 	  return error;
+	}
+      FREE_MEM (hosts[i].hostname);
+      ALLOC_COPY (hosts[i].hostname, host);
+      if (hosts[i].hostname == NULL)
+	{
+	  return CCI_ER_NO_MORE_MEMORY;
 	}
 
       port = strtok_r (NULL, ":", &save_alter);
@@ -333,7 +378,9 @@ int
 cci_conn_set_properties (T_CON_HANDLE * handle, char *properties)
 {
   char *base = NULL, *file = NULL, *althosts = NULL;
+  char *sslmode = NULL, *sslca = NULL;
   char path[PATH_MAX];
+  int mode;
 
   T_URL_PROPERTY props[] = {
     {"altHosts", STRING_PROPERTY, &althosts},
@@ -357,6 +404,8 @@ cci_conn_set_properties (T_CON_HANDLE * handle, char *properties)
     {"disconnect_on_query_timeout", BOOL_PROPERTY,
      &handle->disconnect_on_query_timeout},
     {"useSSL", BOOL_PROPERTY, &handle->useSSL},
+    {"sslmode", STRING_PROPERTY, &sslmode},
+    {"sslca", STRING_PROPERTY, &sslca},
     {"__gateway", BOOL_PROPERTY, &handle->__gateway},
   };
   int error = CCI_ER_NO_ERROR;
@@ -377,6 +426,31 @@ cci_conn_set_properties (T_CON_HANDLE * handle, char *properties)
   if (handle->rc_time < MONITORING_INTERVAL)
     {
       handle->rc_time = MONITORING_INTERVAL;
+    }
+
+  /* sslmode decides when given, and useSSL is filled to match (1 is USESSL) so that the == USESSL checks in
+   * cci_network.c keep working unchanged */
+  mode = cci_url_resolve_sslmode (sslmode, handle->useSSL);
+  if (mode < 0)
+    {
+      cci_url_set_invalid (handle, "Invalid sslmode value '%s'", sslmode);
+      error = CCI_ER_INVALID_URL;
+      goto set_properties_end;
+    }
+  handle->sslmode = (T_CCI_SSLMODE) mode;
+  handle->useSSL = (handle->sslmode != CCI_SSLMODE_DISABLED);
+
+  FREE_MEM (handle->ssl_ca_file);
+  handle->ssl_ca_file = sslca;
+  sslca = NULL;
+
+  /* No fallback to a system CA store: the bundled OpenSSL cannot find one, and any public CA could then vouch for
+   * the broker. JDBC has the same rule. */
+  if (handle->sslmode >= CCI_SSLMODE_VERIFY_CA && handle->ssl_ca_file == NULL)
+    {
+      cci_url_set_invalid (handle, "sslca is required for sslmode=%s", cci_sslmode_label (handle->sslmode));
+      error = CCI_ER_INVALID_URL;
+      goto set_properties_end;
     }
 
   if (althosts != NULL)
@@ -439,6 +513,8 @@ set_properties_end:
   FREE_MEM (althosts);
   FREE_MEM (base);
   FREE_MEM (file);
+  FREE_MEM (sslmode);
+  FREE_MEM (sslca);
 
   API_SLOG (handle);
   API_ELOG (handle, error);

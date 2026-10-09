@@ -551,6 +551,8 @@ cci_connect_with_url_internal (char *url, char *user, char *pass, T_CCI_ERROR * 
 
       if (error < 0)
 	{
+	  /* the reason cci_conn_set_properties () left, if any; ret: below fills in the generic one otherwise */
+	  get_last_error (con_handle, err_buf);
 	  hm_con_handle_free (con_handle);
 	  goto ret;
 	}
