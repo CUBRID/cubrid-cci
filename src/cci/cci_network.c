@@ -1065,6 +1065,9 @@ net_check_broker_alive (unsigned char *ip_addr, int port, int timeout_msec, char
   con_handle = (T_CON_HANDLE *) MALLOC (sizeof (T_CON_HANDLE));
   memset (con_handle, 0, sizeof (T_CON_HANDLE));
   con_handle->useSSL = useSSL;
+  /* named rather than left to the memset's 0 (disabled): the probe encrypts but verifies nothing, as it only learns
+   * whether the broker answers again - the session verifies it itself when it reconnects */
+  con_handle->sslmode = (useSSL == USESSL) ? CCI_SSLMODE_REQUIRED : CCI_SSLMODE_DISABLED;
 
   init_msg_header (&msg_header);
 
