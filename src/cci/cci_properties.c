@@ -522,23 +522,29 @@ set_properties_end:
 }
 
 /*
- * has_ssl_property - whether the URL properties ask for TLS; read before the handle exists, to pick a pooled one
+ * cci_url_peek_sslmode - the TLS mode and sslca the URL properties ask for; read before the handle exists, to pick
+ *			  a pooled one that was opened the same way
+ *   return: T_CCI_SSLMODE, or -1 when sslmode names no mode
+ *   prop(in): URL properties
+ *   sslca(out): the sslca value, or "" when not given
+ *   sslca_size(in): size of sslca
  *
- * Unlike cci_conn_set_properties(), names other than useSSL and sslmode are skipped rather than refused: refusing
- * them stopped the scan, so "?loginTimeout=1000&useSSL=true" read as plaintext and could be given a pooled
+ * Unlike cci_conn_set_properties(), names other than useSSL, sslmode and sslca are skipped rather than refused:
+ * refusing them stopped the scan, so "?loginTimeout=1000&useSSL=true" read as plaintext and could be given a pooled
  * plaintext connection. Invalid values are left for cci_conn_set_properties() to refuse.
  */
-bool
-has_ssl_property (char *prop)
+int
+cci_url_peek_sslmode (char *prop, char *sslca, int sslca_size)
 {
   char buf[4096] = { 0, };
   char *token, *save_url = NULL;
   char *sslmode = NULL;
   bool use_ssl = false;
 
+  sslca[0] = '\0';
   if (prop == NULL)
     {
-      return false;
+      return CCI_SSLMODE_DISABLED;
     }
 
   snprintf (buf, sizeof (buf), "%s", prop);
@@ -562,10 +568,14 @@ has_ssl_property (char *prop)
 	{
 	  sslmode = value;
 	}
+      else if (strcasecmp (name, "sslca") == 0)
+	{
+	  snprintf (sslca, sslca_size, "%s", value);
+	}
     }
 
-  /* the same rule as cci_conn_set_properties(); -1 for an invalid sslmode reads as plaintext */
-  return cci_url_resolve_sslmode (sslmode, use_ssl) > CCI_SSLMODE_DISABLED;
+  /* the same rule as cci_conn_set_properties() */
+  return cci_url_resolve_sslmode (sslmode, use_ssl);
 }
 
 /* indexed by T_CCI_SSLMODE */

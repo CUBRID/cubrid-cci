@@ -164,7 +164,8 @@ static const char *dbg_isolation_str (T_CCI_TRAN_ISOLATION isol_level);
 
 static const char *cci_get_err_msg_internal (int error);
 
-static T_CON_HANDLE *get_new_connection (char *ip, int port, char *db_name, char *db_user, char *dbpasswd, bool useSSL);
+static T_CON_HANDLE *get_new_connection (char *ip, int port, char *db_name, char *db_user, char *dbpasswd, int sslmode,
+					 const char *sslca);
 static bool cci_datasource_make_url (T_CCI_PROPERTIES * prop, char *new_url, char *url, T_CCI_ERROR * err_buf);
 
 #ifdef CCI_DEBUG
@@ -382,7 +383,7 @@ cci_connect_internal (char *ip, int port, char *db, char *user, char *pass, T_CC
     }
 #endif
 
-  con_handle = get_new_connection (ip, port, db, user, pass, false);
+  con_handle = get_new_connection (ip, port, db, user, pass, CCI_SSLMODE_DISABLED, NULL);
   if (con_handle == NULL)
     {
       set_error_buffer (err_buf, CCI_ER_CONNECT, NULL);
@@ -465,7 +466,8 @@ cci_connect_with_url_internal (char *url, char *user, char *pass, T_CCI_ERROR * 
   char *token[MAX_URL_MATCH_COUNT] = { NULL };
   int error = CCI_ER_NO_ERROR;
   unsigned i;
-  bool useSSL;
+  int sslmode;
+  char sslca[PATH_MAX];
 
   char *property = NULL;
   char *end = NULL;
@@ -520,9 +522,9 @@ cci_connect_with_url_internal (char *url, char *user, char *pass, T_CCI_ERROR * 
       property = (char *) "";
     }
 
-  useSSL = has_ssl_property (property);
+  sslmode = cci_url_peek_sslmode (property, sslca, sizeof (sslca));
 
-  con_handle = get_new_connection (host, port, dbname, user, pass, useSSL);
+  con_handle = get_new_connection (host, port, dbname, user, pass, sslmode, (sslca[0] != '\0') ? sslca : NULL);
   if (con_handle == NULL)
     {
       for (i = 0; i < MAX_URL_MATCH_COUNT; i++)
@@ -5314,7 +5316,7 @@ dbg_isolation_str (T_CCI_TRAN_ISOLATION isol_level)
 #endif
 
 static T_CON_HANDLE *
-get_new_connection (char *ip, int port, char *db_name, char *db_user, char *dbpasswd, bool useSSL)
+get_new_connection (char *ip, int port, char *db_name, char *db_user, char *dbpasswd, int sslmode, const char *sslca)
 {
   T_CON_HANDLE *con_handle;
   unsigned char ip_addr[4];
@@ -5332,10 +5334,10 @@ get_new_connection (char *ip, int port, char *db_name, char *db_user, char *dbpa
       init_flag = 1;
     }
 
-  con_handle = hm_get_con_from_pool (ip_addr, port, db_name, db_user, dbpasswd, useSSL);
+  con_handle = hm_get_con_from_pool (ip_addr, ip, port, db_name, db_user, dbpasswd, sslmode, sslca);
   if (con_handle == NULL)
     {
-      con_handle = hm_con_handle_alloc (ip, port, db_name, db_user, dbpasswd, useSSL);
+      con_handle = hm_con_handle_alloc (ip, port, db_name, db_user, dbpasswd, sslmode > CCI_SSLMODE_DISABLED);
     }
 
   MUTEX_UNLOCK (con_handle_table_mutex);
