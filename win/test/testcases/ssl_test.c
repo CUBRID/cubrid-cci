@@ -377,9 +377,9 @@ expect_refused (const char *what, const char *host, int port, int use_ssl)
       failed_steps++;
       printf ("FAIL (refused with cci %d, not the SSL mode rejection %d)\n", con, CAS_ER_SSL_TYPE_NOT_ALLOWED);
       if (err.err_msg[0] != '\0')
-        {
-          printf ("       server    : %d, %s\n", err.err_code, err.err_msg);
-        }
+	{
+	  printf ("       server    : %d, %s\n", err.err_code, err.err_msg);
+	}
       fflush (stdout);
       return;
     }
