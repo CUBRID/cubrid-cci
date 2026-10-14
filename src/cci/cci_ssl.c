@@ -30,6 +30,7 @@
 
 #ident "$Id$"
 #include "cci_ssl.h"
+#include <string.h>
 #include <openssl/x509v3.h>
 
 /* TLS 1.2 key exchange is ECDHE only: !kRSA drops static RSA, which gives no forward secrecy, and DHE is left out
@@ -103,15 +104,38 @@ is_ip_literal (const char *host)
  * create_ssl - the TLS session for srv_sock_fd
  *   hostname(in): the broker as written in the URL, or NULL or ""; sent as SNI unless it is an IP literal (RFC 6066)
  *   verify_host(in): also require the certificate to name hostname - in an IP SAN for an IP literal, else a DNS SAN
+ *
+ *   An absolute name ("db.example.com.") is the same host without its trailing dot, and both uses below take it
+ *   without: RFC 6066 writes SNI without it, SSL_set1_host() refuses it from OpenSSL 4.0, and JDBC (JSSE) checks the
+ *   certificate without it. The address was already looked up from the name as written.
  */
 SSL *
 create_ssl (SOCKET srv_sock_fd, SSL_CTX * ctx, const char *hostname, bool verify_host)
 {
   SSL *ssl;
   int server = (int) srv_sock_fd;
+  char name[256];
+  size_t len = (hostname != NULL) ? strlen (hostname) : 0;
+  bool has_name, is_ip;
+
+  /* longer than any host name, and longer than SNI can carry */
+  if (len >= sizeof (name))
+    {
+      return NULL;
+    }
+  if (len > 0)
+    {
+      memcpy (name, hostname, len);
+      if (name[len - 1] == '.')
+	{
+	  len--;
+	}
+    }
+  name[len] = '\0';
+
   /* "" counts as no name: SSL_set1_host() takes it to mean "check no name" */
-  bool has_name = (hostname != NULL && hostname[0] != '\0');
-  bool is_ip = (has_name && is_ip_literal (hostname));
+  has_name = (len > 0);
+  is_ip = (has_name && is_ip_literal (name));
 
   ssl = SSL_new (ctx);
   if (ssl == NULL)
@@ -126,7 +150,7 @@ create_ssl (SOCKET srv_sock_fd, SSL_CTX * ctx, const char *hostname, bool verify
       goto error;
     }
 
-  if (has_name && !is_ip && SSL_set_tlsext_host_name (ssl, hostname) != 1)
+  if (has_name && !is_ip && SSL_set_tlsext_host_name (ssl, name) != 1)
     {
       goto error;
     }
@@ -139,8 +163,7 @@ create_ssl (SOCKET srv_sock_fd, SSL_CTX * ctx, const char *hostname, bool verify
 	  goto error;
 	}
 
-      if (is_ip ? X509_VERIFY_PARAM_set1_ip_asc (SSL_get0_param (ssl), hostname) != 1
-	  : SSL_set1_host (ssl, hostname) != 1)
+      if (is_ip ? X509_VERIFY_PARAM_set1_ip_asc (SSL_get0_param (ssl), name) != 1 : SSL_set1_host (ssl, name) != 1)
 	{
 	  goto error;
 	}
