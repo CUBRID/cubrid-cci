@@ -1016,10 +1016,6 @@ extern "C"
 				    T_CCI_ERROR * err_buf);
   extern int cci_internal_lob_close (int mapped_conn_id, long long token, T_CCI_ERROR * err_buf);
 
-  /* Back-compat aliases: COPY was the first consumer of the stream transport. */
-  extern int cci_copy_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf);
-  extern int cci_copy_end (int mapped_conn_id, T_CCI_ERROR * err_buf);
-
 #ifdef __cplusplus
 }
 #endif

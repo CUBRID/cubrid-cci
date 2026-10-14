@@ -17,7 +17,6 @@
  */
 
 
-
 /*
  * cas_cci.c -
  */
@@ -51,11 +50,9 @@
 #include <sys/socket.h>
 #endif
 
-
 /************************************************************************
  * OTHER IMPORTED HEADER FILES						*
  ************************************************************************/
-
 
 #include "cci_version.h"
 
@@ -128,7 +125,6 @@ int wsa_initialize ();
 #define CCI_DS_DEFAULT_LOCK_TIMEOUT_DEFAULT 		CCI_LOCK_TIMEOUT_DEFAULT
 #define CCI_DS_LOGIN_TIMEOUT_DEFAULT			(CCI_LOGIN_TIMEOUT_DEFAULT)
 #define CCI_DS_USESSL_DEFAULT 	false
-
 
 #define CON_ID(a) ((a) / CON_HANDLE_ID_FACTOR)
 #define REQ_ID(a) ((a) % CON_HANDLE_ID_FACTOR)
@@ -234,7 +230,6 @@ CCI_MALLOC_FUNCTION cci_malloc = malloc;
 CCI_CALLOC_FUNCTION cci_calloc = calloc;
 CCI_REALLOC_FUNCTION cci_realloc = realloc;
 CCI_FREE_FUNCTION cci_free = free;
-
 
 #ifdef CCI_DEBUG
 /*
@@ -665,7 +660,6 @@ cas_end_session (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf)
 	      break;
 	    }
 	}
-
 
       error = qe_end_session (con_handle, err_buf);
     }
@@ -4021,7 +4015,6 @@ ret:
   return error;
 }
 
-
 int
 cci_bfile_read (int mapped_conn_id, T_CCI_BFILE bfile, long long start_pos, int length, char *buf,
 		T_CCI_ERROR * err_buf)
@@ -4034,7 +4027,6 @@ cci_bfile_read (int mapped_conn_id, T_CCI_BFILE bfile, long long start_pos, int 
   return cci_lob_read (mapped_conn_id, bfile, start_pos, length, buf, err_buf);
 }
 
-
 int
 cci_cfile_read (int mapped_conn_id, T_CCI_CFILE cfile, long long start_pos, int length, char *buf,
 		T_CCI_ERROR * err_buf)
@@ -4046,7 +4038,6 @@ cci_cfile_read (int mapped_conn_id, T_CCI_CFILE cfile, long long start_pos, int 
 
   return cci_lob_read (mapped_conn_id, cfile, start_pos, length, buf, err_buf);
 }
-
 
 static int
 cci_lob_free (void *lob)
@@ -4064,20 +4055,17 @@ cci_lob_free (void *lob)
   return 0;
 }
 
-
 int
 cci_bfile_free (T_CCI_BFILE bfile)
 {
   return cci_lob_free (bfile);
 }
 
-
 int
 cci_cfile_free (T_CCI_CFILE cfile)
 {
   return cci_lob_free (cfile);
 }
-
 
 #ifdef CCI_XA
 int
@@ -4206,7 +4194,6 @@ cci_xa_end_tran (int mapped_conn_id, XID * xid, char type, T_CCI_ERROR * err_buf
   return error;
 }
 #endif
-
 
 int
 cci_get_dbms_type (int mapped_conn_id)
@@ -5540,7 +5527,6 @@ cci_property_get_bool_internal (T_CCI_PROPERTIES * prop, T_CCI_DATASOURCE_KEY ke
 {
   char *tmp;
 
-
   assert (out_value != NULL);
   assert (err_buf != NULL);
 
@@ -6197,7 +6183,6 @@ cci_datasource_change_property (T_CCI_DATASOURCE * ds, const char *key, const ch
 	  error = err_buf.err_code;
 	  goto change_property_end;
 	}
-
 
       if (v > ds->max_pool_size)
 	{
@@ -7006,16 +6991,3 @@ cci_internal_lob_close (int mapped_conn_id, long long token, T_CCI_ERROR * err_b
   return error;
 }
 
-/* Back-compat: COPY was the first consumer of the stream transport.
- * These forward to the generalized cci_stream_* entry points. */
-int
-cci_copy_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf)
-{
-  return cci_stream_send_data (mapped_conn_id, data, data_len, err_buf);
-}
-
-int
-cci_copy_end (int mapped_conn_id, T_CCI_ERROR * err_buf)
-{
-  return cci_stream_end (mapped_conn_id, err_buf);
-}
