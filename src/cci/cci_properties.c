@@ -563,7 +563,8 @@ set_properties_end:
 /*
  * cci_url_peek_sslmode - the TLS mode and sslca the URL properties ask for; read before the handle exists, to pick
  *			  a pooled one that was opened the same way
- *   return: T_CCI_SSLMODE, or -1 when sslmode names no mode
+ *   return: T_CCI_SSLMODE, or -1 when sslmode names no mode or the properties cannot be read in full; -1 matches no
+ *	     pooled connection
  *   prop(in): URL properties
  *   sslca(out): the sslca value, or "" when not given
  *   sslca_size(in): size of sslca
@@ -571,14 +572,19 @@ set_properties_end:
  * Unlike cci_conn_set_properties(), names other than useSSL, sslmode and sslca are skipped rather than refused:
  * refusing them stopped the scan, so "?loginTimeout=1000&useSSL=true" read as plaintext and could be given a pooled
  * plaintext connection. Invalid values are left for cci_conn_set_properties() to refuse.
+ *
+ * The whole string is read, as cci_conn_set_properties() reads it: a copy cut short could miss a later sslmode and
+ * pick a pooled connection opened with less verification, whose live socket is then used as it is.
  */
 int
 cci_url_peek_sslmode (char *prop, char *sslca, int sslca_size)
 {
-  char buf[4096] = { 0, };
+  char *buf;
   char *token, *save_url = NULL;
   char *sslmode = NULL;
   bool use_ssl = false;
+  bool cut = false;
+  int mode;
 
   sslca[0] = '\0';
   if (prop == NULL)
@@ -586,7 +592,11 @@ cci_url_peek_sslmode (char *prop, char *sslca, int sslca_size)
       return CCI_SSLMODE_DISABLED;
     }
 
-  snprintf (buf, sizeof (buf), "%s", prop);
+  buf = strdup (prop);
+  if (buf == NULL)
+    {
+      return -1;
+    }
 
   for (token = strtok_r (buf, "?&", &save_url); token != NULL; token = strtok_r (NULL, "&", &save_url))
     {
@@ -609,12 +619,14 @@ cci_url_peek_sslmode (char *prop, char *sslca, int sslca_size)
 	}
       else if (strcasecmp (name, "sslca") == 0)
 	{
-	  snprintf (sslca, sslca_size, "%s", value);
+	  cut = (snprintf (sslca, sslca_size, "%s", value) >= sslca_size);
 	}
     }
 
   /* the same rule as cci_conn_set_properties() */
-  return cci_url_resolve_sslmode (sslmode, use_ssl);
+  mode = cut ? -1 : cci_url_resolve_sslmode (sslmode, use_ssl);
+  FREE_MEM (buf);
+  return mode;
 }
 
 /* indexed by T_CCI_SSLMODE */
