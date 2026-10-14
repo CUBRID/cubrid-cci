@@ -104,6 +104,12 @@ extern T_MUTEX create_ssl_mutex;
 
 #define SOCKET_TIMEOUT 5000	/* msec */
 
+/* OpenSSL 1.1.1 has no reason for a connection that ends in the handshake: it leaves the error queue empty, which
+ * ssl_handshake_failure_reason () takes the same way */
+#if !defined(SSL_R_UNEXPECTED_EOF_WHILE_READING)
+#define SSL_R_UNEXPECTED_EOF_WHILE_READING (-1)
+#endif
+
 /************************************************************************
  * PRIVATE TYPE DEFINITIONS						*
  ************************************************************************/

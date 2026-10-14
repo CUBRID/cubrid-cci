@@ -183,13 +183,14 @@ cci_url_set_invalid (T_CON_HANDLE * handle, const char *format, ...)
  * cci_url_check_sslca - whether the sslca file can be read and holds a certificate
  *
  * Read when the URL is parsed, before the broker is reached, as JDBC does: finding it only at the TLS handshake
- * left the CAS waiting for a handshake that never started.
+ * left the CAS waiting for a handshake that never started. X509_STORE_load_locations () rather than
+ * X509_STORE_load_file (), which OpenSSL 1.1.1 does not have.
  */
 static bool
 cci_url_check_sslca (T_CON_HANDLE * handle)
 {
   X509_STORE *store = X509_STORE_new ();
-  bool readable = (store != NULL && X509_STORE_load_file (store, handle->ssl_ca_file) == 1);
+  bool readable = (store != NULL && X509_STORE_load_locations (store, handle->ssl_ca_file, NULL) == 1);
 
   if (!readable)
     {
