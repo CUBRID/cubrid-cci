@@ -148,13 +148,16 @@ compare_conn_info (unsigned char *ip_addr, const char *hostname, int port, char 
     }
 
   /* A pooled connection keeps the TLS session it was opened with, so it is reused only for a request that would
-   * have verified the broker the same way: against the same anchors, and for verify-full, for the same name. */
+   * have verified the broker the same way: against the same anchors, and for verify-full, for the same name. A
+   * handle that failed over is connected to an alternate host, checked against that host's name, which the new URL
+   * need not list, so for verify-full only a handle on its main host is reused. */
   if (sslmode >= CCI_SSLMODE_VERIFY_CA
       && (sslca == NULL || con_handle->ssl_ca_file == NULL || strcmp (sslca, con_handle->ssl_ca_file) != 0))
     {
       return 0;
     }
-  if (sslmode == CCI_SSLMODE_VERIFY_FULL && strcasecmp (hostname, con_handle->hostname) != 0)
+  if (sslmode == CCI_SSLMODE_VERIFY_FULL
+      && (strcasecmp (hostname, con_handle->hostname) != 0 || con_handle->alter_host_id > 0))
     {
       return 0;
     }
