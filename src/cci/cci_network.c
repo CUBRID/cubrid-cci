@@ -160,7 +160,7 @@ int
 net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, int login_timeout)
 {
   SOCKET srv_sock_fd;
-  char client_info[SRV_CON_CLIENT_INFO_SIZE];
+  unsigned char client_info[SRV_CON_CLIENT_INFO_SIZE];
   char db_info[SRV_CON_DB_INFO_SIZE];
   char ver_str[SRV_CON_VER_STR_MAX_SIZE];
   MSG_HEADER msg_header;
@@ -263,7 +263,7 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
     }
 
   con_handle->sock_fd = srv_sock_fd;
-  if (net_send_stream (con_handle, client_info, SRV_CON_CLIENT_INFO_SIZE) < 0)
+  if (net_send_stream (con_handle, (char *) client_info, SRV_CON_CLIENT_INFO_SIZE) < 0)
     {
       err_code = CCI_ER_COMMUNICATION;
       goto connect_srv_error;
@@ -537,7 +537,7 @@ net_cancel_request_wo_local_port (unsigned char *ip_addr, int port, int pid)
 static int
 net_cancel_request_ex (unsigned char *ip_addr, int port, int pid, char *session_id)
 {
-  char msg[10 + SESSION_ID_SIZE];
+  unsigned char msg[10 + SESSION_ID_SIZE];
 
   msg[0] = 'X';
   msg[1] = '1';
@@ -549,7 +549,7 @@ net_cancel_request_ex (unsigned char *ip_addr, int port, int pid, char *session_
   memcpy (msg + 6, (char *) &pid, 4);
   memcpy (msg + 10, session_id + 8, SESSION_ID_SIZE);
 
-  return net_cancel_request_internal (ip_addr, port, msg, sizeof (msg));
+  return net_cancel_request_internal (ip_addr, port, (char *) msg, sizeof (msg));
 }
 
 int
@@ -1050,7 +1050,7 @@ net_check_broker_alive (unsigned char *ip_addr, int port, int timeout_msec, char
 {
   SOCKET sock_fd;
   MSG_HEADER msg_header;
-  char client_info[SRV_CON_CLIENT_INFO_SIZE];
+  unsigned char client_info[SRV_CON_CLIENT_INFO_SIZE];
   char db_info[SRV_CON_DB_INFO_SIZE];
   char db_name[SRV_CON_DBNAME_SIZE];
   char url[SRV_CON_URL_SIZE];
@@ -1100,7 +1100,7 @@ net_check_broker_alive (unsigned char *ip_addr, int port, int timeout_msec, char
     }
 
   con_handle->sock_fd = sock_fd;
-  if (net_send_stream (con_handle, client_info, SRV_CON_CLIENT_INFO_SIZE) < 0)
+  if (net_send_stream (con_handle, (char *) client_info, SRV_CON_CLIENT_INFO_SIZE) < 0)
     {
       goto finish_health_check;
     }
