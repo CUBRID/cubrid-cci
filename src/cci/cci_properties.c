@@ -231,6 +231,8 @@ cci_url_set_value (T_URL_PROPERTY * property, char *value)
       }
     case STRING_PROPERTY:
       {
+	/* a property given twice keeps the last value; a datasource adds its sslmode and sslca after the URL's own */
+	FREE_MEM (*((char **) property->data));
 	*((char **) property->data) = strdup (value);
 	if (*((char **) property->data) == NULL)
 	  {
