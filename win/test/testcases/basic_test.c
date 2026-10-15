@@ -395,8 +395,6 @@ main (int argc, char *argv[])
     }
 
   /* A leftover table from an interrupted run would break CREATE, so clear it first. */
-  step_begin ("drop " TEST_TABLE " if it exists");
-  /* A leftover table from an interrupted run would break CREATE, so clear it first. */
   fprintf (stderr,
 	   "WARNING: %s.%s will be dropped and any existing data will be deleted.\n", config.database, TEST_TABLE);
   fflush (stderr);
