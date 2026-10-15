@@ -1125,14 +1125,14 @@
 
 #define ER_INVALID_PARTITION_REQUEST                -899
 
-#define ER_SP_JVM_LIB_NOT_FOUND                     -900
-#define ER_SP_CANNOT_START_JVM                      -901
-#define ER_SP_NOT_RUNNING_JVM                       -902
-#define ER_SP_CANNOT_CONNECT_JVM                    -903
+#define ER_SP_VM_LIB_NOT_FOUND                      -900
+#define ER_SP_CANNOT_START_PL_SERVER                -901
+#define ER_SP_NOT_RUNNING_PL_SERVER                 -902
+#define ER_SP_CANNOT_CONNECT_PL_SERVER              -903
 #define ER_SP_INVALID_NAME                          -904
 #define ER_SP_NETWORK_ERROR                         -905
 #define ER_SP_INVAILD_JAVA_METHOD                   -906
-#define ER_SP_DROP_NOT_ALLOWED                      -907
+#define ER_SP_DDL_NOT_ALLOWED_PRIVILEGES            -907
 #define ER_SP_TOO_MANY_ARG_COUNT                    -908
 
 #define ER_BO_MISSING_OR_INVALID_CATALOG            -909
@@ -1387,7 +1387,7 @@
 #define ER_BLOCK_DDL_STMT                           -1099
 #define ER_BLOCK_NOWHERE_STMT                       -1100
 
-#define ER_CANNOT_GET_KEY_LOCK                      -1101
+#define ER_CANNOT_GET_KEY_LOCK                      -1101	/* Obsolete */
 
 #define ER_PRM_BAD_VALUE_NO_DATA                    -1102
 #define ER_PRM_CANNOT_CHANGE_NO_DATA                -1103
@@ -1625,7 +1625,169 @@
 #define ER_TDE_MAX_KEY_FILE                         -1262
 #define ER_TDE_ENCRYPTION_LOGPAGE_ERORR_AND_OFF_TDE -1263
 
-#define ER_LAST_ERROR                               -1264
+#define ER_SCALABILITY_DEV_RESERVED_ERROR01         -1264
+#define ER_SCALABILITY_DEV_RESERVED_ERROR02         -1265
+#define ER_SCALABILITY_DEV_RESERVED_ERROR03         -1266
+#define ER_SCALABILITY_DEV_RESERVED_ERROR04         -1267
+#define ER_SCALABILITY_DEV_RESERVED_ERROR05         -1268
+#define ER_SCALABILITY_DEV_RESERVED_ERROR06         -1269
+#define ER_SCALABILITY_DEV_RESERVED_ERROR07         -1270
+#define ER_SCALABILITY_DEV_RESERVED_ERROR08         -1271
+#define ER_SCALABILITY_DEV_RESERVED_ERROR09         -1272
+#define ER_SCALABILITY_DEV_RESERVED_ERROR10         -1273
+#define ER_SCALABILITY_DEV_RESERVED_ERROR11         -1274
+#define ER_SCALABILITY_DEV_RESERVED_ERROR12         -1275
+#define ER_SCALABILITY_DEV_RESERVED_ERROR13         -1276
+#define ER_SCALABILITY_DEV_RESERVED_ERROR14         -1277
+#define ER_SCALABILITY_DEV_RESERVED_ERROR15         -1278
+#define ER_SCALABILITY_DEV_RESERVED_ERROR16         -1279
+#define ER_SCALABILITY_DEV_RESERVED_ERROR17         -1280
+#define ER_SCALABILITY_DEV_RESERVED_ERROR18         -1281
+#define ER_SCALABILITY_DEV_RESERVED_ERROR19         -1282
+#define ER_SCALABILITY_DEV_RESERVED_ERROR20         -1283
+
+#define ER_TRUNCATE_PK_REFERRED                     -1284
+#define ER_TRUNCATE_CANT_CASCADE                    -1285
+
+#define ER_CDC_LSA_NOT_FOUND                        -1286
+#define ER_CDC_EXTRACTION_TIMEOUT                   -1287
+#define ER_CDC_IGNORE_LOG_INFO_INTERNAL             -1288
+#define ER_CDC_IGNORE_TRANSACTION                   -1289
+#define ER_CDC_INVALID_LOG_LSA                      -1290
+#define ER_CDC_NOT_AVAILABLE                        -1291
+#define ER_CDC_ADJUSTED_LSA                         -1292
+#define ER_CDC_NULL_EXTRACTION_LSA                  -1293
+#define ER_CDC_LOGINFO_ENTRY_GENERATED              -1294
+#define ER_CDC_IGNORE_LOG_INFO                      -1295
+
+#define ER_LOG_RECOVERY_ANALYSIS_STARTED            -1296
+#define ER_LOG_RECOVERY_REDO_STARTED                -1297
+#define ER_LOG_RECOVERY_UNDO_STARTED                -1298
+#define ER_LOG_RECOVERY_PHASE_FINISHING_UP          -1299
+#define ER_LOG_RECOVERY_PHASE_FINISHED              -1300
+#define ER_LOG_RECOVERY_PROGRESS                    -1301
+
+#define ER_DBLINK                                   -1302
+#define ER_DBLINK_INVALID_COLUMNS_SPECIFIED         -1303
+#define ER_DBLINK_CATALOG_DB_SERVER_NOT_FOUND       -1304
+#define ER_DBLINK_SERVER_NOT_FOUND                  -1305
+#define ER_DBLINK_SERVER_ALREADY_EXISTS             -1306
+#define ER_DBLINK_CANNOT_UPDATE_SERVER              -1307
+#define ER_DBLINK_UNSUPPORTED_TYPE                  -1308
+#define ER_DBLINK_INVALID_BIND_PARAM                -1309
+#define ER_DBLINK_PASSWORD_OVER_MAX_LENGTH          -1310
+#define ER_DBLINK_PASSWORD_INVALID_LENGTH           -1311
+#define ER_DBLINK_PASSWORD_CHECKSUM                 -1312
+#define ER_DBLINK_PASSWORD_INVALID_FMT              -1313
+#define ER_DBLINK_PASSWORD_DECRYPT                  -1314
+#define ER_DBLINK_PASSWORD_ENCRYPT                  -1315
+#define ER_DBLINK_SERVER_MULTIPLE_FOUND             -1316
+#define ER_DBLINK_SERVER_ALTER_NOT_ALLOWED          -1317
+
+#define ER_CGW_NATIVE_ODBC                          -1318
+#define ER_CGW_NUM_BIND                             -1319
+#define ER_CGW_INVALID_HANDLE                       -1320
+#define ER_CGW_TYPE_CONVERSION                      -1321
+#define ER_CGW_NOT_SUPPORTED_TYPE                   -1322
+#define ER_CGW_INVALID_STMT_HANDLE                  -1323
+#define ER_CGW_INVALID_DBC_HANDLE                   -1324
+#define ER_CGW_NOT_EXIST_LINK_NAME                  -1325
+#define ER_CGW_INVALID_NUMERIC_VALUE                -1326
+#define ER_CGW_INVALID_PRECISION_VALUE              -1327
+
+#define ER_CGW_INVALID_DESC_HANDLE                  -1328
+#define ER_CGW_NOT_SUPPORTED_DBMS                   -1329
+#define ER_CGW_NOT_ALLOCATE_ENV_HANDLE              -1330
+#define ER_CGW_NULL_COL_BINDER                      -1331
+
+#define ER_LOG_TOO_SANE_TO_RECREATE                 -1332
+
+#define ER_FLASHBACK_INVALID_TIME                   -1333
+#define ER_FLASHBACK_INVALID_CLASS                  -1334
+#define ER_FLASHBACK_EXCEED_MAX_NUM_TRAN_TO_SUMMARY -1335
+#define ER_FLASHBACK_SCHEMA_CHANGED                 -1336
+#define ER_FLASHBACK_LOG_NOT_EXIST                  -1337
+#define ER_FLASHBACK_DUPLICATED_REQUEST             -1338
+
+#define ER_SP_NOT_SUPPORTED_ARG_TYPE                -1339
+#define ER_SP_NOT_SUPPORTED_RETURN_TYPE             -1340
+
+#define ER_AU_INVALID_ARGUMENTS                     -1341
+#define ER_AU_CANT_ALTER_OWNER_OF_AUTO_INCREMENT    -1342
+#define ER_SM_RENAME_CANT_ALTER_OWNER               -1343
+#define ER_QPROC_CREATE_SERIAL_NOT_OWNER            -1344
+#define ER_TR_CREATE_NOT_ALLOWED                    -1345
+
+#define ER_SYNONYM_PUBLIC_ALREADY_EXIST             -1346
+#define ER_SYNONYM_PUBLIC_NOT_EXIST                 -1347
+#define ER_SYNONYM_ALREADY_EXIST                    -1348
+#define ER_SYNONYM_NOT_EXIST                        -1349
+#define ER_SYNONYM_INVALID_VALUE                    -1350
+
+#define ER_SM_INVALID_FUNCTION_EXPRESSION_LENGTH    -1351
+
+#define ER_CGW_INVALID_COLUMNS_SPECIFIED            -1352
+
+#define ER_SQL_ERROR_LOG_TRACE                      -1353
+#define ER_SQL_ERROR_LOG_MSG_TRACE                  -1354
+
+#define ER_FILE_NOT_FOUND                           -1355
+#define ER_CGW_INVALID_DBLINT_HINT                  -1356
+#define ER_CGW_SQL_CONV_ERROR                       -1357
+#define ER_CGW_UNKNOWN_AFFECTED_ROWS                -1358
+
+#define ER_SP_PL_SERVER_CRASHED                     -1359
+#define ER_SP_COMPILE_ERROR                         -1360
+#define ER_QPROC_RESULT_CACHE_INVALID               -1361
+
+#define ER_LOCALE_LANG_NOT_AVAILABLE                -1362
+#define ER_SP_DROP_NOT_ALLOWED_SYSTEM_GENERATED     -1363
+#define ER_SP_INVOKERS_RIGHTS_NOT_SUPPORTED         -1364
+
+#define ER_AU_OWNER_ONLY_GRANT_PRIVILEGE            -1365
+
+#define ER_SP_PARAM_DEFAULT_STR_TOO_BIG             -1366
+
+#define ER_DBLINK_TRAN				    -1367
+
+// CAUTION: sync this value with that in CUBRIDServerSideJDBCErrorCode.java
+#define ER_SP_INVALID_CURSOR                        -1368
+
+#define ER_AU_LOGIN_DISABLED                        -1369
+
+#define ER_AUTO_INCREMENT_SINGLE_COL_ONLY           -1370
+
+#define ER_SM_ATT_AT_LEAST_ONE_VISIBLE              -1371
+
+#define ER_METHOD_CALLBACK                          -1372
+
+#define ER_INVALID_SCALE                            -1373
+
+#define ER_PARTITION_TABLE_NAME_OVERFLOW            -1374
+
+#define ER_QSTR_INVALID_UUID_FORMAT                 -1375
+
+#define ER_IMPLICITLY_ABORT_FOR_LOGIN_METHOD        -1376
+
+#define ER_BT_LOAD_NOTIFY_VACUUM_LIMIT              -1377
+
+#define ER_AU_CANT_ALTER_LOGIN                      -1378
+
+#define ER_CDC_ARCHIVE_KEPT                         -1379
+
+#define ER_SP_PARALLEL_ENABLE_NO_SQL                -1380
+
+#define ER_SYSMETA_UPGRADE_REQUIRED                 -1381
+#define ER_SYSMETA_DOWNGRADE_NOT_SUPPORTED          -1382
+
+#define ER_QPROC_DOMAIN_UNRESOLVED                  -1383
+
+#define ER_QPROC_SESSION_VARIABLE_TYPE              -1384
+
+#define ER_AU_REJECT_LOGIN                          -1385
+
+#define ER_LAST_ERROR                               -1386
+
 
 /*
  * CAUTION!
