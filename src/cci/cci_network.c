@@ -104,6 +104,12 @@ extern T_MUTEX create_ssl_mutex;
 
 #define SOCKET_TIMEOUT 5000	/* msec */
 
+/* OpenSSL 1.1.1 has no reason for a connection that ends in the handshake: it leaves the error queue empty, which
+ * ssl_handshake_failure_reason () takes the same way */
+#if !defined(SSL_R_UNEXPECTED_EOF_WHILE_READING)
+#define SSL_R_UNEXPECTED_EOF_WHILE_READING (-1)
+#endif
+
 /************************************************************************
  * PRIVATE TYPE DEFINITIONS						*
  ************************************************************************/
@@ -131,7 +137,8 @@ static int net_cancel_request_wo_local_port (unsigned char *ip_addr, int port, i
 static int net_status_request (unsigned char *ip_addr, int port, int cas_pid, char *sessionid, int timeout_msec);
 static int net_status_recv_stream (SOCKET sock_fd, char *buf, int size, int timeout);
 
-static int ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd);
+static int ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostname, T_CCI_ERROR * err_buf);
+static const char *ssl_handshake_failure_reason (void);
 /************************************************************************
  * INTERFACE VARIABLES							*
  ************************************************************************/
@@ -169,6 +176,7 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
   int new_port;
   char *msg_buf, *info, *p, *ver_ptr;
   unsigned char *ip_addr;
+  char *hostname;
   int port;
   int body_len;
   T_BROKER_VERSION broker_ver;
@@ -249,11 +257,13 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
   if (host_id < 0)
     {
       ip_addr = con_handle->ip_addr;
+      hostname = con_handle->hostname;
       port = con_handle->port;
     }
   else
     {
       ip_addr = con_handle->alter_hosts[host_id].ip_addr;
+      hostname = con_handle->alter_hosts[host_id].hostname;
       port = con_handle->alter_hosts[host_id].port;
     }
   ret_value = connect_srv (ip_addr, port, con_handle->is_retry, &srv_sock_fd, login_timeout);
@@ -303,7 +313,7 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
     {
       MUTEX_LOCK (create_ssl_mutex);
 
-      ret_value = ssl_session_init (con_handle, srv_sock_fd);
+      ret_value = ssl_session_init (con_handle, srv_sock_fd, hostname, err_buf);
       if (ret_value < 0)
 	{
 	  MUTEX_UNLOCK (create_ssl_mutex);
@@ -1061,6 +1071,9 @@ net_check_broker_alive (unsigned char *ip_addr, int port, int timeout_msec, char
   con_handle = (T_CON_HANDLE *) MALLOC (sizeof (T_CON_HANDLE));
   memset (con_handle, 0, sizeof (T_CON_HANDLE));
   con_handle->useSSL = useSSL;
+  /* named rather than left to the memset's 0 (disabled): the probe encrypts but verifies nothing, as it only learns
+   * whether the broker answers again - the session verifies it itself when it reconnects */
+  con_handle->sslmode = (useSSL == USESSL) ? CCI_SSLMODE_REQUIRED : CCI_SSLMODE_DISABLED;
 
   init_msg_header (&msg_header);
 
@@ -1096,6 +1109,7 @@ net_check_broker_alive (unsigned char *ip_addr, int port, int timeout_msec, char
 
   if (connect_srv (ip_addr, port, 0, &sock_fd, timeout_msec) < 0)
     {
+      FREE_MEM (con_handle);
       return false;
     }
 
@@ -1120,7 +1134,7 @@ net_check_broker_alive (unsigned char *ip_addr, int port, int timeout_msec, char
   if (con_handle->useSSL == USESSL)
     {
       MUTEX_LOCK (create_ssl_mutex);
-      if (ssl_session_init (con_handle, sock_fd) < 0)
+      if (ssl_session_init (con_handle, sock_fd, NULL, NULL) < 0)
 	{
 	  MUTEX_UNLOCK (create_ssl_mutex);
 	  goto finish_health_check;
@@ -1605,8 +1619,12 @@ connect_retry:
   return CCI_ER_NO_ERROR;
 }
 
+/*
+ * ssl_session_init - TLS over sock_fd as con_handle->sslmode asks
+ *   hostname(in): the broker as written in the URL; NULL for the health check, which never verifies
+ */
 static int
-ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd)
+ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostname, T_CCI_ERROR * err_buf)
 {
   SSL *ssl = NULL;
   SSL_CTX *ctx = NULL;
@@ -1625,7 +1643,22 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd)
 
   con_handle->ssl_handle.ctx = ctx;
 
-  ssl = create_ssl (sock_fd, con_handle->ssl_handle.ctx);
+  if (con_handle->sslmode >= CCI_SSLMODE_VERIFY_CA && set_ssl_ctx_verify (ctx, con_handle->ssl_ca_file) != 1)
+    {
+      /* checked when the URL was parsed, so only a file changed since then gets here */
+      if (err_buf != NULL)
+	{
+	  err_buf->err_code = CCI_ER_INVALID_URL;
+	  snprintf (err_buf->err_msg, sizeof (err_buf->err_msg), "Cannot read sslca file %s (%s)",
+		    con_handle->ssl_ca_file, cci_ssl_error_reason ());
+	}
+      ERR_clear_error ();
+      cleanup_ssl_ctx (con_handle->ssl_handle.ctx);
+      con_handle->ssl_handle.ctx = NULL;
+      return CCI_ER_INVALID_URL;
+    }
+
+  ssl = create_ssl (sock_fd, con_handle->ssl_handle.ctx, hostname, con_handle->sslmode == CCI_SSLMODE_VERIFY_FULL);
   if (ssl == NULL)
     {
       cleanup_ssl_ctx (con_handle->ssl_handle.ctx);
@@ -1637,13 +1670,64 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd)
 
   if (connect_ssl (ssl) != 1)
     {
+      /* With SSL_VERIFY_PEER a rejected certificate aborts the handshake itself, so the reason is read here, in the
+       * failure branch, and before the SSL object that holds it is freed */
+      long verify_result = SSL_get_verify_result (ssl);
+      const char *reason = ssl_handshake_failure_reason ();
+
       cleanup_ssl (con_handle->ssl_handle.ssl);
       cleanup_ssl_ctx (con_handle->ssl_handle.ctx);
       con_handle->ssl_handle.ssl = NULL;
       con_handle->ssl_handle.ctx = NULL;
+
+      if (con_handle->sslmode >= CCI_SSLMODE_VERIFY_CA && verify_result != X509_V_OK)
+	{
+	  if (err_buf != NULL)
+	    {
+	      err_buf->err_code = CCI_ER_SSL_CERT_VERIFY;
+	      snprintf (err_buf->err_msg, sizeof (err_buf->err_msg),
+			"Cannot verify the server certificate of %s: %s (X509 error %ld)",
+			(hostname != NULL) ? hostname : "the broker", X509_verify_cert_error_string (verify_result),
+			verify_result);
+	    }
+	  return CCI_ER_SSL_CERT_VERIFY;
+	}
+
+      if (err_buf != NULL)
+	{
+	  err_buf->err_code = CCI_ER_SSL_HANDSHAKE;
+	  snprintf (err_buf->err_msg, sizeof (err_buf->err_msg), "SSL handshake failure: %s", reason);
+	}
+      ERR_clear_error ();
       return CCI_ER_SSL_HANDSHAKE;
     }
 
   con_handle->ssl_handle.is_connected = true;
   return err_code;
+}
+
+/*
+ * ssl_handshake_failure_reason - why a handshake failed, for a failure other than a rejected certificate
+ *
+ * A CAS that cannot load its certificate or key answers the ClientHello with a plaintext CAS error and closes, so
+ * the client sees a record that is not TLS ("wrong version number") or the connection ending. Either way the cause
+ * is only in the CAS log.
+ */
+static const char *
+ssl_handshake_failure_reason (void)
+{
+  unsigned long e = ERR_peek_error ();
+  int reason = (ERR_GET_LIB (e) == ERR_LIB_SSL) ? ERR_GET_REASON (e) : 0;
+
+  /* the same words as JDBC (handshakeFailureReason () in BrokerHandler.java) for the same failures */
+  if (e == 0 || reason == SSL_R_UNEXPECTED_EOF_WHILE_READING || reason == SSL_R_WRONG_VERSION_NUMBER)
+    {
+      return "the broker did not start TLS; its CAS log has the cause, such as an expired or unreadable certificate";
+    }
+  if (reason == SSL_R_SSLV3_ALERT_HANDSHAKE_FAILURE)
+    {
+      return "the driver and the broker have no TLS version or cipher suite in common";
+    }
+
+  return cci_ssl_error_reason ();
 }

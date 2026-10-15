@@ -196,6 +196,7 @@ typedef struct
 {
   unsigned char ip_addr[4];
   int port;
+  char *hostname;		/* as written in the URL, for the certificate check; NULL in host_status[] */
 } T_ALTER_HOST;
 
 typedef struct
@@ -204,6 +205,17 @@ typedef struct
   SSL_CTX *ctx;
   bool is_connected;
 } T_SSL_HANDLE;
+
+/* TLS mode from the sslmode URL property; same names and order as JDBC (cubrid.jdbc.jci.SslMode).
+ * Declared here rather than in cci_ssl.h: cci_properties.c cannot include cci_ssl.h on Windows, where its
+ * <winsock2.h> would follow the <windows.h> that porting.h has already pulled in. */
+typedef enum
+{
+  CCI_SSLMODE_DISABLED = 0,
+  CCI_SSLMODE_REQUIRED,		/* what useSSL=true has always done: encrypt, verify nothing */
+  CCI_SSLMODE_VERIFY_CA,
+  CCI_SSLMODE_VERIFY_FULL
+} T_CCI_SSLMODE;
 
 typedef struct
 {
@@ -214,6 +226,7 @@ typedef struct
   CCI_AUTOCOMMIT_MODE autocommit_mode;
   unsigned char ip_addr[4];
   int port;
+  char *hostname;		/* as written in the URL; ip_addr is resolved from it */
   char *db_name;
   char *db_user;
   char *db_passwd;
@@ -261,6 +274,8 @@ typedef struct
   char log_trace_api;
   char log_trace_network;
   char useSSL;
+  T_CCI_SSLMODE sslmode;
+  char *ssl_ca_file;
   char __gateway;
   char oracle_style_number_return;
 
@@ -316,8 +331,8 @@ extern void req_handle_content_free_for_pool (T_REQ_HANDLE * req_handle);
 extern int req_close_query_result (T_REQ_HANDLE * req_handle);
 extern void hm_invalidate_all_req_handle (T_CON_HANDLE * con_handle);
 extern int hm_ip_str_to_addr (char *ip_str, unsigned char *ip_addr);
-extern T_CON_HANDLE *hm_get_con_from_pool (unsigned char *ip_addr, int port, char *dbname, char *dbuser,
-					   char *dbpasswd, bool useSSL);
+extern T_CON_HANDLE *hm_get_con_from_pool (unsigned char *ip_addr, const char *hostname, int port, char *dbname,
+					   char *dbuser, char *dbpasswd, int sslmode, const char *sslca);
 extern int hm_put_con_to_pool (int con);
 
 extern T_BROKER_VERSION hm_get_broker_version (T_CON_HANDLE * con_handle);
@@ -352,7 +367,10 @@ extern void hm_force_close_connection (T_CON_HANDLE * con_handle);
 
 extern void hm_ssl_free (T_CON_HANDLE * con_handle);
 
-extern bool has_ssl_property (char *prop);
+extern int cci_url_peek_sslmode (char *prop, char *sslca, int sslca_size);
+extern int cci_sslmode_from_label (const char *label);
+extern const char *cci_sslmode_label (int sslmode);
+extern const char *cci_ssl_error_reason (void);
 /************************************************************************
  * PUBLIC VARIABLES							*
  ************************************************************************/
