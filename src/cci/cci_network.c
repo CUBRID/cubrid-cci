@@ -507,6 +507,7 @@ static int
 net_cancel_request_w_local_port (unsigned char *ip_addr, int port, int pid, unsigned short local_port, char *session_id)
 {
   char msg[10 + SESSION_ID_SIZE];
+  int msglen = 10;
 
   memset (msg, 0, sizeof (msg));
   strcpy (msg, "QC");
@@ -514,11 +515,15 @@ net_cancel_request_w_local_port (unsigned char *ip_addr, int port, int pid, unsi
   memcpy (msg + 2, (char *) &pid, 4);
   local_port = htons (local_port);
   memcpy (msg + 6, (char *) &local_port, 2);
-  /* byte 8 is the first of the two reserved bytes; see BROKER_SUPPORT_SESSION_CANCEL */
-  msg[8] = BROKER_SUPPORT_SESSION_CANCEL;
-  memcpy (msg + 10, session_id + 8, SESSION_ID_SIZE);
+  if (session_id != NULL)
+    {
+      /* byte 8 is the first of the two reserved bytes; see BROKER_SUPPORT_SESSION_CANCEL */
+      msg[8] = BROKER_SUPPORT_SESSION_CANCEL;
+      memcpy (msg + 10, session_id + 8, SESSION_ID_SIZE);
+      msglen += SESSION_ID_SIZE;
+    }
 
-  return net_cancel_request_internal (ip_addr, port, msg, sizeof (msg));
+  return net_cancel_request_internal (ip_addr, port, msg, msglen);
 }
 
 static int
@@ -538,18 +543,24 @@ static int
 net_cancel_request_ex (unsigned char *ip_addr, int port, int pid, char *session_id)
 {
   unsigned char msg[10 + SESSION_ID_SIZE];
+  int msglen = 10;
 
   msg[0] = 'X';
   msg[1] = '1';
   msg[2] = CAS_CLIENT_CCI;
-  msg[3] = BROKER_RENEWED_ERROR_CODE | BROKER_SUPPORT_HOLDABLE_RESULT | BROKER_SUPPORT_SESSION_CANCEL;
+  msg[3] = BROKER_RENEWED_ERROR_CODE | BROKER_SUPPORT_HOLDABLE_RESULT;
   msg[4] = 0;
   msg[5] = 0;
   pid = htonl (pid);
   memcpy (msg + 6, (char *) &pid, 4);
-  memcpy (msg + 10, session_id + 8, SESSION_ID_SIZE);
+  if (session_id != NULL)
+    {
+      msg[3] |= BROKER_SUPPORT_SESSION_CANCEL;
+      memcpy (msg + 10, session_id + 8, SESSION_ID_SIZE);
+      msglen += SESSION_ID_SIZE;
+    }
 
-  return net_cancel_request_internal (ip_addr, port, (char *) msg, sizeof (msg));
+  return net_cancel_request_internal (ip_addr, port, (char *) msg, msglen);
 }
 
 int
@@ -561,6 +572,7 @@ net_cancel_request (T_CON_HANDLE * con_handle)
   int error;
   int broker_port;
   T_BROKER_VERSION broker_ver;
+  char *session_id = NULL;
 
   if (con_handle->alter_host_id < 0)
     {
@@ -572,9 +584,18 @@ net_cancel_request (T_CON_HANDLE * con_handle)
     }
 
   broker_ver = hm_get_broker_version (con_handle);
+
+  /* Only a PROTOCOL_V13 or later broker reads the session id appended after the 10-byte cancel
+   * header. An older broker leaves it unread in the socket, and its close then resets the
+   * connection, which can make the driver fail to read the cancel reply. */
+  if (hm_broker_understand_the_protocol (broker_ver, PROTOCOL_V13))
+    {
+      session_id = con_handle->session_id.id;
+    }
+
   if (hm_broker_understand_the_protocol (broker_ver, PROTOCOL_V4))
     {
-      return net_cancel_request_ex (con_handle->ip_addr, broker_port, con_handle->cas_pid, con_handle->session_id.id);
+      return net_cancel_request_ex (con_handle->ip_addr, broker_port, con_handle->cas_pid, session_id);
     }
   else if (hm_broker_understand_the_protocol (broker_ver, PROTOCOL_V1))
     {
@@ -586,7 +607,7 @@ net_cancel_request (T_CON_HANDLE * con_handle)
 	}
 
       return net_cancel_request_w_local_port (con_handle->ip_addr, broker_port, con_handle->cas_pid, local_port,
-					      con_handle->session_id.id);
+					      session_id);
     }
   else
     {
