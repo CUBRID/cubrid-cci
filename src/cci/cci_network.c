@@ -1717,9 +1717,9 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostnam
 /*
  * ssl_handshake_failure_reason - why a handshake failed, for a failure other than a rejected certificate
  *
- * A CAS that cannot load its certificate or key answers the ClientHello with a plaintext CAS error and closes, so
- * the client sees a record that is not TLS ("wrong version number") or the connection ending. Either way the cause
- * is only in the CAS log.
+ * A CAS that cannot load its certificate or key closes the connection without starting TLS, so the client sees the
+ * connection ending; a CAS older than CBRD-27544 first answers the ClientHello with a plaintext CAS error, a record
+ * that is not TLS ("wrong version number"). Either way the cause is only in the CAS log.
  */
 static const char *
 ssl_handshake_failure_reason (void)
