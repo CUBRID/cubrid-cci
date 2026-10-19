@@ -137,7 +137,10 @@ static int net_cancel_request_wo_local_port (unsigned char *ip_addr, int port, i
 static int net_status_request (unsigned char *ip_addr, int port, int cas_pid, char *sessionid, int timeout_msec);
 static int net_status_recv_stream (SOCKET sock_fd, char *buf, int size, int timeout);
 
-static int ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostname, T_CCI_ERROR * err_buf);
+static int ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostname, int timeout_msec,
+			     T_CCI_ERROR * err_buf);
+static void set_socket_io_timeout (SOCKET sock_fd, int timeout_msec);
+static bool ssl_timed_out (SSL * ssl, int ret);
 static const char *ssl_handshake_failure_reason (void);
 /************************************************************************
  * INTERFACE VARIABLES							*
@@ -311,16 +314,12 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
   con_handle->sock_fd = srv_sock_fd;
   if (con_handle->useSSL == USESSL)
     {
-      MUTEX_LOCK (create_ssl_mutex);
-
-      ret_value = ssl_session_init (con_handle, srv_sock_fd, hostname, err_buf);
+      ret_value = ssl_session_init (con_handle, srv_sock_fd, hostname, login_timeout, err_buf);
       if (ret_value < 0)
 	{
-	  MUTEX_UNLOCK (create_ssl_mutex);
 	  err_code = ret_value;
 	  goto connect_srv_error;
 	}
-      MUTEX_UNLOCK (create_ssl_mutex);
     }
 
   if (net_send_stream (con_handle, db_info, SRV_CON_DB_INFO_SIZE) < 0)
@@ -1133,13 +1132,10 @@ net_check_broker_alive (unsigned char *ip_addr, int port, int timeout_msec, char
 
   if (con_handle->useSSL == USESSL)
     {
-      MUTEX_LOCK (create_ssl_mutex);
-      if (ssl_session_init (con_handle, sock_fd, NULL, NULL) < 0)
+      if (ssl_session_init (con_handle, sock_fd, NULL, timeout_msec, NULL) < 0)
 	{
-	  MUTEX_UNLOCK (create_ssl_mutex);
 	  goto finish_health_check;
 	}
-      MUTEX_UNLOCK (create_ssl_mutex);
     }
 
   if (net_send_stream (con_handle, db_info, SRV_CON_DB_INFO_SIZE) < 0)
@@ -1622,13 +1618,17 @@ connect_retry:
 /*
  * ssl_session_init - TLS over sock_fd as con_handle->sslmode asks
  *   hostname(in): the broker as written in the URL; NULL for the health check, which never verifies
+ *   timeout_msec(in): how long the broker may take to answer each step of the handshake; 0 for no limit
  */
 static int
-ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostname, T_CCI_ERROR * err_buf)
+ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostname, int timeout_msec,
+		  T_CCI_ERROR * err_buf)
 {
   SSL *ssl = NULL;
   SSL_CTX *ctx = NULL;
   int err_code = CCI_ER_NO_ERROR;
+  int ret;
+  bool timed_out;
 
   if (sock_fd == INVALID_SOCKET || (con_handle != NULL && con_handle->useSSL != USESSL))
     {
@@ -1640,9 +1640,14 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostnam
    * empties the queue itself; set_ssl_ctx_verify () does not. */
   ERR_clear_error ();
 
+  /* The mutex covers creating the SSL objects, not the handshake: held while the broker is awaited, it let one broker
+   * that never answers stall every other TLS connect in the process and the health check. */
+  MUTEX_LOCK (create_ssl_mutex);
+
   ctx = create_ssl_ctx ();
   if (ctx == NULL)
     {
+      MUTEX_UNLOCK (create_ssl_mutex);
       return CCI_ER_COMMUNICATION;
     }
 
@@ -1660,6 +1665,7 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostnam
       ERR_clear_error ();
       cleanup_ssl_ctx (con_handle->ssl_handle.ctx);
       con_handle->ssl_handle.ctx = NULL;
+      MUTEX_UNLOCK (create_ssl_mutex);
       return CCI_ER_INVALID_URL;
     }
 
@@ -1668,12 +1674,28 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostnam
     {
       cleanup_ssl_ctx (con_handle->ssl_handle.ctx);
       con_handle->ssl_handle.ctx = NULL;
+      MUTEX_UNLOCK (create_ssl_mutex);
       return CCI_ER_COMMUNICATION;
     }
 
   con_handle->ssl_handle.ssl = ssl;
 
-  if (connect_ssl (ssl) != 1)
+  MUTEX_UNLOCK (create_ssl_mutex);
+
+  /* The socket is blocking, so without a limit a broker that never answers holds SSL_connect () forever. Limited by
+   * the login timeout, as the plaintext login that follows is. */
+  if (timeout_msec > 0)
+    {
+      set_socket_io_timeout (sock_fd, timeout_msec);
+    }
+  ret = connect_ssl (ssl);
+  timed_out = (ret != 1 && timeout_msec > 0 && ssl_timed_out (ssl, ret));
+  if (timeout_msec > 0)
+    {
+      set_socket_io_timeout (sock_fd, 0);
+    }
+
+  if (ret != 1)
     {
       /* With SSL_VERIFY_PEER a rejected certificate aborts the handshake itself, so the reason is read here, in the
        * failure branch, and before the SSL object that holds it is freed */
@@ -1688,6 +1710,13 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostnam
       /* emptied on every failure, a rejected certificate included, along with what SSL_shutdown () in cleanup_ssl ()
        * adds on a handshake that did not finish ("shutdown while in init") */
       ERR_clear_error ();
+
+      if (timed_out)
+	{
+	  /* no message, as for a plaintext login that times out: the host is marked unreachable and the next one is
+	   * tried, and a message left here would stay in err_buf even if that one connects */
+	  return CCI_ER_LOGIN_TIMEOUT;
+	}
 
       if (con_handle->sslmode >= CCI_SSLMODE_VERIFY_CA && verify_result != X509_V_OK)
 	{
@@ -1712,6 +1741,43 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostnam
 
   con_handle->ssl_handle.is_connected = true;
   return err_code;
+}
+
+/*
+ * set_socket_io_timeout - limit each blocking read and write on sock_fd to timeout_msec; 0 removes the limit
+ */
+static void
+set_socket_io_timeout (SOCKET sock_fd, int timeout_msec)
+{
+#if defined(WINDOWS)
+  DWORD tv = (DWORD) timeout_msec;
+#else
+  struct timeval tv;
+
+  tv.tv_sec = timeout_msec / 1000;
+  tv.tv_usec = (timeout_msec % 1000) * 1000;
+#endif
+
+  setsockopt (sock_fd, SOL_SOCKET, SO_RCVTIMEO, (const char *) &tv, sizeof (tv));
+  setsockopt (sock_fd, SOL_SOCKET, SO_SNDTIMEO, (const char *) &tv, sizeof (tv));
+}
+
+/*
+ * ssl_timed_out - whether the TLS call that returned ret on a socket limited by set_socket_io_timeout () failed
+ *		   because the limit passed; called right after that call, before anything else touches the socket
+ */
+static bool
+ssl_timed_out (SSL * ssl, int ret)
+{
+  int ssl_error = SSL_get_error (ssl, ret);
+
+#if defined(WINDOWS)
+  /* WSAETIMEDOUT is not among the errors the socket BIO retries on, so it is reported as a syscall failure */
+  return (ssl_error == SSL_ERROR_SYSCALL && WSAGetLastError () == WSAETIMEDOUT);
+#else
+  /* the read or write fails with EAGAIN, which the socket BIO reports as "retry" */
+  return (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE);
+#endif
 }
 
 /*
