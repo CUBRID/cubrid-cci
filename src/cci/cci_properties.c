@@ -189,8 +189,15 @@ cci_url_set_invalid (T_CON_HANDLE * handle, const char *format, ...)
 static bool
 cci_url_check_sslca (T_CON_HANDLE * handle)
 {
-  X509_STORE *store = X509_STORE_new ();
-  bool readable = (store != NULL && X509_STORE_load_locations (store, handle->ssl_ca_file, NULL) == 1);
+  X509_STORE *store;
+  bool readable;
+
+  /* cci_ssl_error_reason () reads the first error queued, so nothing an earlier failure in this thread left, such as
+   * a rejected certificate, may come before the one this load queues */
+  ERR_clear_error ();
+
+  store = X509_STORE_new ();
+  readable = (store != NULL && X509_STORE_load_locations (store, handle->ssl_ca_file, NULL) == 1);
 
   if (!readable)
     {

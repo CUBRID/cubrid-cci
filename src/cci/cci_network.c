@@ -1635,6 +1635,11 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostnam
       return CCI_ER_COMMUNICATION;
     }
 
+  /* The sslca reason below is the first entry of the error queue, which is per thread and keeps what an earlier
+   * OpenSSL call left in it, such as a rejected certificate or an SSL_read () of the previous session. SSL_connect ()
+   * empties the queue itself; set_ssl_ctx_verify () does not. */
+  ERR_clear_error ();
+
   ctx = create_ssl_ctx ();
   if (ctx == NULL)
     {
@@ -1680,6 +1685,10 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostnam
       con_handle->ssl_handle.ssl = NULL;
       con_handle->ssl_handle.ctx = NULL;
 
+      /* emptied on every failure, a rejected certificate included, along with what SSL_shutdown () in cleanup_ssl ()
+       * adds on a handshake that did not finish ("shutdown while in init") */
+      ERR_clear_error ();
+
       if (con_handle->sslmode >= CCI_SSLMODE_VERIFY_CA && verify_result != X509_V_OK)
 	{
 	  if (err_buf != NULL)
@@ -1698,7 +1707,6 @@ ssl_session_init (T_CON_HANDLE * con_handle, SOCKET sock_fd, const char *hostnam
 	  err_buf->err_code = CCI_ER_SSL_HANDSHAKE;
 	  snprintf (err_buf->err_msg, sizeof (err_buf->err_msg), "SSL handshake failure: %s", reason);
 	}
-      ERR_clear_error ();
       return CCI_ER_SSL_HANDSHAKE;
     }
 
