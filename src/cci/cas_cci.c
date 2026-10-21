@@ -164,7 +164,8 @@ static const char *dbg_isolation_str (T_CCI_TRAN_ISOLATION isol_level);
 
 static const char *cci_get_err_msg_internal (int error);
 
-static T_CON_HANDLE *get_new_connection (char *ip, int port, char *db_name, char *db_user, char *dbpasswd, bool useSSL);
+static T_CON_HANDLE *get_new_connection (char *ip, int port, char *db_name, char *db_user, char *dbpasswd, int sslmode,
+					 const char *sslca);
 static bool cci_datasource_make_url (T_CCI_PROPERTIES * prop, char *new_url, char *url, T_CCI_ERROR * err_buf);
 
 #ifdef CCI_DEBUG
@@ -226,7 +227,9 @@ static const char *datasource_key[] = {
   CCI_DS_PROPERTY_DEFAULT_ISOLATION,
   CCI_DS_PROPERTY_DEFAULT_LOCK_TIMEOUT,
   CCI_DS_PROPERTY_MAX_POOL_SIZE,
-  CCI_DS_PROPERTY_USESSL
+  CCI_DS_PROPERTY_USESSL,
+  CCI_DS_PROPERTY_SSLMODE,
+  CCI_DS_PROPERTY_SSLCA
 };
 
 CCI_MALLOC_FUNCTION cci_malloc = malloc;
@@ -382,7 +385,7 @@ cci_connect_internal (char *ip, int port, char *db, char *user, char *pass, T_CC
     }
 #endif
 
-  con_handle = get_new_connection (ip, port, db, user, pass, false);
+  con_handle = get_new_connection (ip, port, db, user, pass, CCI_SSLMODE_DISABLED, NULL);
   if (con_handle == NULL)
     {
       set_error_buffer (err_buf, CCI_ER_CONNECT, NULL);
@@ -465,7 +468,8 @@ cci_connect_with_url_internal (char *url, char *user, char *pass, T_CCI_ERROR * 
   char *token[MAX_URL_MATCH_COUNT] = { NULL };
   int error = CCI_ER_NO_ERROR;
   unsigned i;
-  bool useSSL;
+  int sslmode;
+  char sslca[PATH_MAX];
 
   char *property = NULL;
   char *end = NULL;
@@ -520,9 +524,9 @@ cci_connect_with_url_internal (char *url, char *user, char *pass, T_CCI_ERROR * 
       property = (char *) "";
     }
 
-  useSSL = has_ssl_property (property);
+  sslmode = cci_url_peek_sslmode (property, sslca, sizeof (sslca));
 
-  con_handle = get_new_connection (host, port, dbname, user, pass, useSSL);
+  con_handle = get_new_connection (host, port, dbname, user, pass, sslmode, (sslca[0] != '\0') ? sslca : NULL);
   if (con_handle == NULL)
     {
       for (i = 0; i < MAX_URL_MATCH_COUNT; i++)
@@ -551,6 +555,8 @@ cci_connect_with_url_internal (char *url, char *user, char *pass, T_CCI_ERROR * 
 
       if (error < 0)
 	{
+	  /* the reason cci_conn_set_properties () left, if any; ret: below fills in the generic one otherwise */
+	  get_last_error (con_handle, err_buf);
 	  hm_con_handle_free (con_handle);
 	  goto ret;
 	}
@@ -4612,6 +4618,10 @@ cci_get_err_msg_internal (int error)
     case CCI_ER_SSL_HANDSHAKE:
       return "SSL handshake failure";
 
+    case CCI_ER_SSL_CERT_VERIFY:
+      return "The server certificate could not be verified (check sslca, and the certificate's validity period and "
+	"subject alternative names)";
+
     case CAS_ER_INTERNAL:
       return "Not used";
 
@@ -4701,7 +4711,7 @@ cci_get_err_msg_internal (int error)
 
     case CAS_ER_SSL_TYPE_NOT_ALLOWED:
       return
-	"The requested SSL mode is not permitted, the CAS server is running in a different mode (check useSSL property).";
+	"The requested SSL mode is not permitted, the CAS server is running in a different mode (check the sslmode or useSSL property).";
 
     case CAS_ER_IS:
       return "Not used";
@@ -5312,7 +5322,7 @@ dbg_isolation_str (T_CCI_TRAN_ISOLATION isol_level)
 #endif
 
 static T_CON_HANDLE *
-get_new_connection (char *ip, int port, char *db_name, char *db_user, char *dbpasswd, bool useSSL)
+get_new_connection (char *ip, int port, char *db_name, char *db_user, char *dbpasswd, int sslmode, const char *sslca)
 {
   T_CON_HANDLE *con_handle;
   unsigned char ip_addr[4];
@@ -5330,10 +5340,10 @@ get_new_connection (char *ip, int port, char *db_name, char *db_user, char *dbpa
       init_flag = 1;
     }
 
-  con_handle = hm_get_con_from_pool (ip_addr, port, db_name, db_user, dbpasswd, useSSL);
+  con_handle = hm_get_con_from_pool (ip_addr, ip, port, db_name, db_user, dbpasswd, sslmode, sslca);
   if (con_handle == NULL)
     {
-      con_handle = hm_con_handle_alloc (ip, port, db_name, db_user, dbpasswd, useSSL);
+      con_handle = hm_con_handle_alloc (ip, port, db_name, db_user, dbpasswd, sslmode > CCI_SSLMODE_DISABLED);
     }
 
   MUTEX_UNLOCK (con_handle_table_mutex);
@@ -5706,6 +5716,7 @@ cci_datasource_make_url (T_CCI_PROPERTIES * prop, char *new_url, char *url, T_CC
   int login_timeout = -1, query_timeout = -1;
   bool disconnect_on_query_timeout;
   bool useSSL = false;
+  char *sslmode, *sslca;
   int rlen, n;
 
   assert (new_url && url);
@@ -5746,7 +5757,7 @@ cci_datasource_make_url (T_CCI_PROPERTIES * prop, char *new_url, char *url, T_CC
 
       n = snprintf (append_str, rlen, "%c%s=%d", delim, str, login_timeout);
       assert (rlen >= 0);
-      if (rlen < n || n < 0)
+      if (n < 0 || n >= rlen)
 	{
 	  set_error_buffer (err_buf, CCI_ER_NO_MORE_MEMORY, NULL);
 	  return false;
@@ -5768,7 +5779,7 @@ cci_datasource_make_url (T_CCI_PROPERTIES * prop, char *new_url, char *url, T_CC
 
       n = snprintf (append_str, rlen, "%c%s=%d", delim, str, query_timeout);
       assert (rlen >= 0);
-      if (rlen < n || n < 0)
+      if (n < 0 || n >= rlen)
 	{
 	  set_error_buffer (err_buf, CCI_ER_NO_MORE_MEMORY, NULL);
 	  return false;
@@ -5792,7 +5803,7 @@ cci_datasource_make_url (T_CCI_PROPERTIES * prop, char *new_url, char *url, T_CC
 
       n = snprintf (append_str, rlen, "%c%s=%s", delim, str, disconnect_on_query_timeout ? "true" : "false");
       assert (rlen >= 0);
-      if (rlen < n || n < 0)
+      if (n < 0 || n >= rlen)
 	{
 	  set_error_buffer (err_buf, CCI_ER_NO_MORE_MEMORY, NULL);
 	  return false;
@@ -5814,7 +5825,7 @@ cci_datasource_make_url (T_CCI_PROPERTIES * prop, char *new_url, char *url, T_CC
 
       n = snprintf (append_str, rlen, "%c%s=%s", delim, str, useSSL ? "true" : "false");
       assert (rlen >= 0);
-      if (rlen < n || n < 0)
+      if (n < 0 || n >= rlen)
 	{
 	  set_error_buffer (err_buf, CCI_ER_NO_MORE_MEMORY, NULL);
 	  return false;
@@ -5824,6 +5835,50 @@ cci_datasource_make_url (T_CCI_PROPERTIES * prop, char *new_url, char *url, T_CC
       delim = '&';
 
       reset_error_buffer (err_buf);
+    }
+
+  /* a getter above may have left CCI_ER_NO_PROPERTY, which set_error_buffer () would not overwrite */
+  reset_error_buffer (err_buf);
+
+  sslmode = cci_property_get (prop, datasource_key[CCI_DS_KEY_SSLMODE]);
+  if (sslmode != NULL)
+    {
+      if (cci_sslmode_from_label (sslmode) < 0)
+	{
+	  set_error_buffer (err_buf, CCI_ER_INVALID_PROPERTY_VALUE, "sslmode parsing : %s", sslmode);
+	  return false;
+	}
+
+      str = datasource_key[CCI_DS_KEY_SSLMODE];
+
+      n = snprintf (append_str, rlen, "%c%s=%s", delim, str, sslmode);
+      assert (rlen >= 0);
+      if (n < 0 || n >= rlen)
+	{
+	  set_error_buffer (err_buf, CCI_ER_NO_MORE_MEMORY, NULL);
+	  return false;
+	}
+      strcat (new_url, append_str);
+      rlen -= n;
+      delim = '&';
+    }
+
+  /* the file itself is checked when a pooled connection parses the URL (cci_conn_set_properties) */
+  sslca = cci_property_get (prop, datasource_key[CCI_DS_KEY_SSLCA]);
+  if (sslca != NULL)
+    {
+      str = datasource_key[CCI_DS_KEY_SSLCA];
+
+      n = snprintf (append_str, rlen, "%c%s=%s", delim, str, sslca);
+      assert (rlen >= 0);
+      if (n < 0 || n >= rlen)
+	{
+	  set_error_buffer (err_buf, CCI_ER_NO_MORE_MEMORY, NULL);
+	  return false;
+	}
+      strcat (new_url, append_str);
+      rlen -= n;
+      delim = '&';
     }
 
   reset_error_buffer (err_buf);
