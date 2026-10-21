@@ -11,8 +11,12 @@
   kept a stable ABI across v140/v141/v142, and win\build.bat already defaults to the
   VS2017 generator while linking these same archives.
 
-  Requirements: Perl (Strawberry Perl) and Visual Studio. NASM is used when present;
-  without it the build falls back to no-asm.
+  Requirements: Perl (Strawberry Perl), Visual Studio and NASM 2.15 or later. NASM is
+  mandatory - see the nasm check in Invoke-OpensslBuild for why no-asm is not an option.
+
+  jom is optional but worth installing: nmake compiles OpenSSL's ~1100 source files one
+  at a time, so the compile is effectively the whole build, and jom runs the same
+  makefile across every core.
 
 .PARAMETER Arch
   all (the default) builds Win32 and x64, 32 builds Win32 only, 64 builds x64 only.
@@ -21,6 +25,9 @@
 
 .PARAMETER Keep
   Keep the work directory (openssl_build) instead of deleting it.
+
+.PARAMETER NoParallel
+  Build with nmake even when jom is on PATH, and drop the note about installing it.
 
 .EXAMPLE
   .\build_openssl.ps1
@@ -41,6 +48,8 @@ param(
 
     [switch] $Keep,
 
+    [switch] $NoParallel,
+
     [switch] $Help,
 
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -53,6 +62,7 @@ $ErrorActionPreference = 'Stop'
 $OpensslVersion = '3.5.7'
 $OpensslUrl     = "https://github.com/CUBRID/3rdparty/raw/develop/openssl/openssl-$OpensslVersion.tar.gz"
 $OpensslSha256  = 'a8c0d28a529ca480f9f36cf5792e2cd21984552a3c8e4aa11a24aa31aeac98e8'
+$NasmMinVersion = [version]'2.15'
 
 $ExternalDir = $PSScriptRoot
 $WorkDir     = Join-Path $ExternalDir 'openssl_build'
@@ -74,12 +84,13 @@ foreach ($entry in [Environment]::GetEnvironmentVariables('Process').GetEnumerat
 function Show-Usage {
     Write-Host @"
 
-Usage: build_openssl.ps1 [-Arch all|32|64] [-Keep]
+Usage: build_openssl.ps1 [-Arch all|32|64] [-Keep] [-NoParallel]
 
   -Arch all  build Win32 and x64 - the default, so plain build_openssl.ps1 does this
   -Arch 32   build for Win32 only
   -Arch 64   build for x64 only
   -Keep      keep the work directory (openssl_build) instead of deleting it
+  -NoParallel  build with nmake even when jom is on PATH
 
 The /all, /32, /64 and /keep spellings of the old batch script are accepted too, which
 is what build_openssl.bat forwards.
@@ -145,6 +156,54 @@ function Import-VisualStudioEnvironment {
     }
 }
 
+function Resolve-MakeTool {
+    # nmake compiles one file at a time and OpenSSL has over a thousand of them, so the
+    # compile phase is effectively the whole build. jom is Qt's drop-in nmake replacement
+    # that drives the same makefile across every core; without it the build still works,
+    # just serially.
+    $script:MakeExe   = 'nmake'
+    $script:MakeArgs  = @()
+    $script:MakeLabel = 'nmake, one file at a time'
+
+    if ($NoParallel) { return }
+
+    $jom = Get-Command jom -ErrorAction SilentlyContinue
+    if ($jom) {
+        $jobs = [Environment]::ProcessorCount
+        $script:MakeExe   = $jom.Source
+        $script:MakeArgs  = @('-j', "$jobs")
+        $script:MakeLabel = "jom -j $jobs"
+        return
+    }
+
+    Write-Host ''
+    Write-Host 'NOTE: jom was not found, so OpenSSL is compiled one file at a time while'
+    Write-Host "      $([Environment]::ProcessorCount) cores sit idle. jom is a drop-in nmake replacement that builds"
+    Write-Host '      the same makefile in parallel - unpack jom.exe from'
+    Write-Host '        https://download.qt.io/official_releases/jom/jom.zip'
+    Write-Host '      onto PATH. Pass -NoParallel to skip this note.'
+    Write-Host ''
+}
+
+function Get-NasmRequirementMessage {
+    param([Parameter(Mandatory = $true)][string] $Reason)
+
+    return @"
+$Reason
+
+NASM $NasmMinVersion or later is required. OpenSSL needs it to assemble the AES-NI and
+SHA-NI code paths; building with no-asm would leave the bundled archives measurably
+slower at runtime, so the build stops here rather than degrading silently.
+
+  Download : https://www.nasm.us/pub/nasm/releasebuilds/
+             pick a release >= $NasmMinVersion and run nasm-<version>-installer-x64.exe
+  Or       : winget install --id NASM.NASM
+
+Add the install directory (C:\Program Files\NASM by default) to PATH, open a new
+shell and run this script again.
+"@
+}
+
 function Invoke-OpensslBuild {
     param([Parameter(Mandatory = $true)][ValidateSet('32', '64')][string] $Target)
 
@@ -158,7 +217,19 @@ function Invoke-OpensslBuild {
         $vcvarsArch      = 'x86'
     }
 
-    $configureOpts = @('no-shared', 'no-module', 'no-docs', 'no-tests')
+    # no-apps and no-makedepend are build-time only - what gets bundled is the two static
+    # libraries plus the headers, nothing else. no-makedepend is the expensive one: with
+    # dependency tracking on, OpenSSL compiles every source file twice, once for real and
+    # once more as a "cl /Zs /showIncludes" pass inside its own cmd.exe just to write a .d
+    # file, and a tree configured from scratch and deleted afterwards never reads one back.
+    #
+    # /FS is what makes a parallel build possible at all. The VC targets put debug info
+    # for every object into one ossl_static.pdb (see /Fd in LIB_CFLAGS), so concurrent
+    # cl.exe processes fight over it and die with "fatal error C1041". /FS routes those
+    # writes through mspdbsrv. It is set unconditionally rather than only alongside jom,
+    # because a flag that depends on the make tool is a trap for whoever changes it next.
+    $configureOpts = @('no-shared', 'no-module', 'no-docs', 'no-tests',
+                       'no-apps', 'no-makedepend', '/FS')
 
     Write-Host '=========================================================='
     Write-Host " OpenSSL      : $OpensslVersion ($configureTarget)"
@@ -180,11 +251,26 @@ function Invoke-OpensslBuild {
         throw 'perl not found. Install Strawberry Perl and put it on PATH.'
     }
 
-    # NASM only affects performance; without it OpenSSL builds its C implementations.
-    if (-not (Get-Command nasm -ErrorAction SilentlyContinue)) {
-        Write-Host 'WARNING: nasm not found - building with no-asm, which is slower at runtime.'
-        $configureOpts += 'no-asm'
+    # A no-asm build drops OpenSSL's AES-NI and SHA-NI implementations, which costs real
+    # TLS throughput in every driver that links these archives. Missing or outdated NASM
+    # therefore fails the build instead of quietly producing a slower library.
+    $nasm = Get-Command nasm -ErrorAction SilentlyContinue
+    if (-not $nasm) {
+        throw (Get-NasmRequirementMessage 'nasm was not found on PATH.')
     }
+
+    $nasmBanner = (& nasm -v) -join ' '
+    $nasmMatch  = [regex]::Match($nasmBanner, 'NASM version (\d+(?:\.\d+)+)')
+    if (-not $nasmMatch.Success) {
+        throw (Get-NasmRequirementMessage "the NASM version could not be read from '$nasmBanner'.")
+    }
+
+    $nasmText    = $nasmMatch.Groups[1].Value
+    $nasmVersion = [version]$nasmText
+    if ($nasmVersion -lt $NasmMinVersion) {
+        throw (Get-NasmRequirementMessage "NASM $nasmText at $($nasm.Source) is too old.")
+    }
+    Write-Host " NASM         : $nasmText ($($nasm.Source))"
 
     if (-not (Get-Command tar.exe -ErrorAction SilentlyContinue)) {
         throw 'tar.exe not found - it ships with Windows 10 1803 and later.'
@@ -236,13 +322,14 @@ function Invoke-OpensslBuild {
         & perl Configure $configureTarget @configureOpts "--prefix=$prefix"
         if ($LASTEXITCODE -ne 0) { throw 'Configure failed.' }
 
-        Write-Host 'Building ...'
-        & nmake
+        # install_dev pulls in build_libs and nothing else, then installs the headers,
+        # libcrypto.lib, libssl.lib and ossl_static.pdb - precisely what is copied below.
+        # Bare "nmake" is the all target, which also builds apps\openssl.exe, and
+        # install_sw walks the engine, module and runtime targets that never ship here.
+        Write-Host "Building and installing ($script:MakeLabel) ..."
+        $makeArgs = $script:MakeArgs
+        & $script:MakeExe @makeArgs install_dev
         if ($LASTEXITCODE -ne 0) { throw 'build failed.' }
-
-        Write-Host 'Installing ...'
-        & nmake install_sw
-        if ($LASTEXITCODE -ne 0) { throw 'install failed.' }
     } finally {
         Pop-Location
     }
@@ -305,6 +392,7 @@ foreach ($token in $tokens) {
         '^[/-]?(32|x86|win32)$' { $targets += '32'; continue }
         '^[/-]?(64|x64)$'       { $targets += '64'; continue }
         '^[/-]keep$'            { $Keep = $true; continue }
+        '^[/-]no-?parallel$'    { $NoParallel = $true; continue }
         '^[/-](h|\?|help)$'     { $Help = $true; continue }
         default {
             Write-Host "Unknown option: $token"
@@ -326,6 +414,7 @@ if (-not $targets) { $targets = @('32', '64') }
 $targets = @($targets | Select-Object -Unique)
 
 try {
+    Resolve-MakeTool
     foreach ($target in $targets) {
         Reset-EnvironmentToBaseline
         Invoke-OpensslBuild -Target $target
