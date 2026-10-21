@@ -174,6 +174,9 @@ if(NOT FOR_OTHER_DRIVER)
 
   if(UNIX)
     target_link_options(cascci PRIVATE "LINKER:--exclude-libs,libssl.a:libcrypto.a")
+    # the CUBRID engine links cascci for dblink, so cascci exports only the cci_* API (see cascci.map)
+    target_link_options(cascci PRIVATE "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/cascci.map")
+    set_property(TARGET cascci APPEND PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cascci.map)
   endif(UNIX)
 
   if(WIN32)
