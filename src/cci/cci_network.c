@@ -1800,7 +1800,7 @@ ssl_handshake_failure_reason (void)
     }
   if (reason == SSL_R_SSLV3_ALERT_HANDSHAKE_FAILURE)
     {
-      return "the driver and the broker have no TLS version or cipher suite in common";
+      return "the driver and the broker have no cipher suite, signature algorithm or key exchange group in common";
     }
 
   return cci_ssl_error_reason ();
