@@ -185,7 +185,7 @@ static int next_result_info_decode (char *buf, int size, T_REQ_HANDLE * req_hand
 static int bind_value_conversion (T_CCI_A_TYPE a_type, T_CCI_U_TYPE u_type, char flag, void *value, int length,
 				  T_BIND_VALUE * bind_value);
 static int bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void *value, int size, char *charset,
-				  bool set_default_value);
+				  bool set_default_value, bool typed_null);
 static int execute_array_info_decode (char *buf, int size, char flag, T_CCI_QUERY_RESULT ** qr, int *res_remain_size);
 static T_CCI_U_TYPE get_basic_utype (T_CCI_U_EXT_TYPE u_ext_type);
 static int parameter_info_decode (char *buf, int size, int num_param, T_CCI_PARAM_INFO ** res_param);
@@ -545,7 +545,10 @@ qe_bind_param (T_REQ_HANDLE * req_handle, int index, T_CCI_A_TYPE a_type, void *
 
   if (value == NULL || u_type == CCI_U_TYPE_NULL)
     {
-      req_handle->bind_value[index].u_type = CCI_U_TYPE_NULL;
+      /* a NULL keeps the type it is bound with (CCI_U_TYPE_NULL: none) */
+      req_handle->bind_value[index].u_type = u_type;
+      req_handle->bind_value[index].value = NULL;
+      req_handle->bind_value[index].size = 0;
       return 0;
     }
 
@@ -651,7 +654,8 @@ qe_execute (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, char flag, int
       bind_value_to_net_buf (&net_buf, req_handle->bind_value[i].u_type, req_handle->bind_value[i].value,
 			     req_handle->bind_value[i].size, con_handle->charset,
 			     is_set_default_value_if_null (con_handle, req_handle->stmt_type,
-							   req_handle->bind_mode[i]));
+							   req_handle->bind_mode[i]),
+			     hm_broker_understand_the_protocol (broker_ver, PROTOCOL_V13));
     }
 
   if (net_buf.err_code < 0)
@@ -1646,11 +1650,12 @@ qe_fetch (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, char flag, int r
   err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
   if (err_code < 0)
     {
-      if (err_code == CCI_ER_DBMS || err_code == CCI_ER_COMMUNICATION) {
-        hm_req_handle_fetch_buf_free(req_handle);
-        req_handle->cursor_pos = 0;
-        req_handle->is_closed = 1;
-      }
+      if (err_code == CCI_ER_DBMS || err_code == CCI_ER_COMMUNICATION)
+	{
+	  hm_req_handle_fetch_buf_free (req_handle);
+	  req_handle->cursor_pos = 0;
+	  req_handle->is_closed = 1;
+	}
       return err_code;
     }
 
@@ -2153,7 +2158,7 @@ qe_oid_put2 (T_CON_HANDLE * con_handle, char *oid_str, char **attr_name, void **
 	    }
 	}
 
-      bind_value_to_net_buf (&net_buf, u_type, value, data_size, con_handle->charset, false);
+      bind_value_to_net_buf (&net_buf, u_type, value, data_size, con_handle->charset, false, false);
 
       if (tmp_cell.flag == BIND_PTR_DYNAMIC)
 	{
@@ -2862,7 +2867,7 @@ qe_execute_array (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, T_CCI_QU
 	    }
 	  else if (req_handle->bind_value[idx].null_ind[row])
 	    {
-	      cur_cell.u_type = CCI_U_TYPE_NULL;
+	      cur_cell.u_type = req_handle->bind_value[idx].u_type;
 	    }
 	  else
 	    {
@@ -2993,7 +2998,8 @@ qe_execute_array (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, T_CCI_QU
 		  return err_code;
 		}
 	    }
-	  bind_value_to_net_buf (&net_buf, cur_cell.u_type, cur_cell.value, cur_cell.size, con_handle->charset, false);
+	  bind_value_to_net_buf (&net_buf, cur_cell.u_type, cur_cell.value, cur_cell.size, con_handle->charset, false,
+				 hm_broker_understand_the_protocol (hm_get_broker_version (con_handle), PROTOCOL_V13));
 	  if (cur_cell.flag == BIND_PTR_DYNAMIC)
 	    {
 	      FREE_MEM (cur_cell.value);
@@ -3149,7 +3155,8 @@ qe_cursor_update (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, int curs
 	}
     }
 
-  bind_value_to_net_buf (&net_buf, bind_value.u_type, bind_value.value, bind_value.size, con_handle->charset, false);
+  bind_value_to_net_buf (&net_buf, bind_value.u_type, bind_value.value, bind_value.size, con_handle->charset, false,
+			 false);
   if (bind_value.flag == BIND_PTR_DYNAMIC)
     {
       FREE_MEM (bind_value.value);
@@ -6648,7 +6655,7 @@ bind_value_conversion (T_CCI_A_TYPE a_type, T_CCI_U_TYPE u_type, char flag, void
 
 static int
 bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void *value, int size, char *charset,
-		       bool set_default_value)
+		       bool set_default_value, bool typed_null)
 {
   if (u_type < CCI_U_TYPE_FIRST || u_type > CCI_U_TYPE_LAST)
     {
@@ -6657,8 +6664,11 @@ bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void *value, in
 
   if (u_type != CCI_U_TYPE_NULL && value == NULL && set_default_value == false)
     {
-      assert (false);
-      u_type = CCI_U_TYPE_NULL;
+      /* a NULL bound with a type: a PROTOCOL_V13 or later broker keeps the type, an older one gets a NULL without it */
+      if (!typed_null)
+	{
+	  u_type = CCI_U_TYPE_NULL;
+	}
       ADD_ARG_BYTES (net_buf, &u_type, 1);
       ADD_ARG_BYTES (net_buf, NULL, 0);
       return 0;
@@ -6805,6 +6815,7 @@ bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void *value, in
 	  default_value.hh = 0;
 	  default_value.mm = 0;
 	  default_value.ss = 0;
+	  default_value.ms = 0;
 	  default_value.tz[0] = '\0';
 	  ADD_ARG_DATETIMETZ (net_buf, &default_value);
 	}
