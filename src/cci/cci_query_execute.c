@@ -6814,6 +6814,7 @@ bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void *value, in
 	  default_value.hh = 0;
 	  default_value.mm = 0;
 	  default_value.ss = 0;
+	  default_value.ms = 0;
 	  default_value.tz[0] = '\0';
 	  ADD_ARG_DATETIMETZ (net_buf, &default_value);
 	}
