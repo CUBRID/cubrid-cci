@@ -7461,6 +7461,13 @@ qe_stream_request (T_CON_HANDLE * con_handle, T_NET_BUF * net_buf, char **result
 {
   int err_code;
 
+  /* the family (45-51) came with PROTOCOL_V13, and an older CAS closes the connection on a code it does not know */
+  if (!hm_broker_understand_the_protocol (hm_get_broker_version (con_handle), PROTOCOL_V13))
+    {
+      net_buf_clear (net_buf);
+      return CCI_ER_NOT_IMPLEMENTED;
+    }
+
   if (net_buf->err_code < 0)
     {
       err_code = net_buf->err_code;
@@ -7600,6 +7607,8 @@ qe_stream_send_final (T_CON_HANDLE * con_handle, const char *data, int data_len,
 static char
 qe_stream_read_flags (T_CON_HANDLE * con_handle, char flags)
 {
+  /* the caller's own bit only: the same value means RELEASED in a reply */
+  flags &= CAS_STREAM_FLAG_RELEASE_AT_EOF;
   if (con_handle->autocommit_mode == CCI_AUTOCOMMIT_TRUE)
     {
       flags |= CAS_STREAM_FLAG_AUTO_COMMIT;
