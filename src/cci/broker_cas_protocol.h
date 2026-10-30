@@ -101,6 +101,13 @@ extern "C"
 #define CAS_INFO_FLAG_MASK_FORCE_OUT_TRAN       0x02
 #define CAS_INFO_FLAG_MASK_NEW_SESSION_ID       0x04
 
+/* The optional trailing flags byte of the bundled stream requests and replies (the engine's cas_protocol.h). */
+#define CAS_STREAM_FLAG_FINAL			0x01	/* INIT, SEND_DATA: end the stream with this chunk */
+#define CAS_STREAM_FLAG_RELEASE_AT_EOF		0x01	/* READ_OPEN, READ: release the handle at eof */
+#define CAS_STREAM_FLAG_AUTO_COMMIT		0x02	/* READ_OPEN, READ: what RELEASE's auto-commit byte says */
+#define CAS_STREAM_FLAG_EOF			0x01	/* READ_OPEN, READ reply */
+#define CAS_STREAM_FLAG_RELEASED		0x02	/* READ_OPEN, READ reply: the handle is gone */
+
 #define CAS_INFO_SIZE			(4)
 #define CAS_INFO_RESERVED_DEFAULT	(-1)
 
@@ -201,6 +208,11 @@ extern "C"
     CAS_FC_CAS_CHANGE_MODE = 44,
     CAS_FC_STREAM_SEND_DATA = 45,
     CAS_FC_STREAM_END = 46,
+    CAS_FC_STREAM_INIT = 47,
+    CAS_FC_STREAM_ABORT = 48,
+    CAS_FC_STREAM_READ_OPEN = 49,
+    CAS_FC_STREAM_READ = 50,
+    CAS_FC_STREAM_RELEASE = 51,
 
     /* Whenever you want to introduce a new function code, you must add a corresponding function entry to
      * server_fn_table of both CUBRID and (MySQL, Oracle). */
