@@ -929,16 +929,16 @@ extern "C"
   extern int cci_bfile_new (int con_h_id, T_CCI_BFILE * bfile, T_CCI_ERROR * err_buf);
   extern long long cci_bfile_size (T_CCI_BFILE bfile);
   extern int cci_bfile_write (int con_h_id, T_CCI_BFILE bfile,
-			     long long start_pos, int length, const char *buf, T_CCI_ERROR * err_buf);
+			      long long start_pos, int length, const char *buf, T_CCI_ERROR * err_buf);
   extern int cci_bfile_read (int con_h_id, T_CCI_BFILE bfile,
-			    long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf);
+			     long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf);
   extern int cci_bfile_free (T_CCI_BFILE bfile);
   extern int cci_cfile_new (int con_h_id, T_CCI_CFILE * cfile, T_CCI_ERROR * err_buf);
   extern long long cci_cfile_size (T_CCI_CFILE cfile);
   extern int cci_cfile_write (int con_h_id, T_CCI_CFILE cfile,
-			     long long start_pos, int length, const char *buf, T_CCI_ERROR * err_buf);
+			      long long start_pos, int length, const char *buf, T_CCI_ERROR * err_buf);
   extern int cci_cfile_read (int con_h_id, T_CCI_CFILE cfile,
-			    long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf);
+			     long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf);
   extern int cci_cfile_free (T_CCI_CFILE cfile);
   extern int cci_get_dbms_type (int con_h_id);
   extern int cci_register_out_param (int req_h_id, int index);
@@ -996,6 +996,11 @@ extern "C"
   extern int cci_is_shard (int con_h_id, T_CCI_ERROR * err_buf);
   extern int cci_get_cas_info (int mapped_conn_id, char *info_buf, int buf_length, T_CCI_ERROR * err_buf);
 
+  /* flags of the bundled stream calls, and of what cci_stream_read_open () / cci_stream_read () report */
+#define CCI_STREAM_RELEASE_AT_EOF	0x01	/* cci_stream_read_open (), cci_stream_read () */
+#define CCI_STREAM_EOF			0x01	/* reply */
+#define CCI_STREAM_RELEASED		0x02	/* reply: the handle is gone */
+
   extern int cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int config_len,
 			      T_CCI_ERROR * err_buf);
   extern int cci_stream_init_internal_lob (int mapped_conn_id, T_CCI_U_TYPE lob_type, long long data_length,
@@ -1004,8 +1009,14 @@ extern "C"
   extern int cci_stream_end_result (int mapped_conn_id, long long *result, T_CCI_ERROR * err_buf);
   extern int cci_stream_end (int mapped_conn_id, T_CCI_ERROR * err_buf);
   extern int cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf);
+  extern int cci_stream_read_open (int mapped_conn_id, int stream_kind, const char *config, int config_len,
+				   int first_max, char flags, long long *handle, char *buf, int *nread,
+				   char *reply_flags, T_CCI_ERROR * err_buf);
+  extern int cci_stream_read (int mapped_conn_id, long long handle, char *buf, int max, char flags, int *nread,
+			      char *reply_flags, T_CCI_ERROR * err_buf);
+  extern int cci_stream_release (int mapped_conn_id, long long handle, T_CCI_ERROR * err_buf);
   extern int cci_bind_internal_lob_upload (int mapped_stmt_id, int index, T_CCI_U_TYPE lob_type,
-					  long long token, long long data_length, long long logical_length);
+					   long long token, long long data_length, long long logical_length);
 
   /* Internal LOB read streaming.  A BLOB/CLOB column of an internal LOB is fetched as a locator plus the value's
    * byte length (cci_get_data with CCI_A_TYPE_INTERNAL_LOB); the payload is then pulled in bounded chunks so a

@@ -87,6 +87,9 @@ EXPORTS
 	cci_stream_end_result
 	cci_stream_end
 	cci_stream_abort
+	cci_stream_read_open
+	cci_stream_read
+	cci_stream_release
 	cci_bind_internal_lob_upload
 	cci_internal_lob_open
 	cci_internal_lob_read

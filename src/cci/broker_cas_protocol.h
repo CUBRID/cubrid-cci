@@ -101,6 +101,13 @@ extern "C"
 #define CAS_INFO_FLAG_MASK_FORCE_OUT_TRAN       0x02
 #define CAS_INFO_FLAG_MASK_NEW_SESSION_ID       0x04
 
+/* The optional trailing flags byte of the bundled stream requests and replies (the engine's cas_protocol.h). */
+#define CAS_STREAM_FLAG_FINAL			0x01	/* INIT, SEND_DATA: end the stream with this chunk */
+#define CAS_STREAM_FLAG_RELEASE_AT_EOF		0x01	/* READ_OPEN, READ: release the handle at eof */
+#define CAS_STREAM_FLAG_AUTO_COMMIT		0x02	/* READ_OPEN, READ: what RELEASE's auto-commit byte says */
+#define CAS_STREAM_FLAG_EOF			0x01	/* READ_OPEN, READ reply */
+#define CAS_STREAM_FLAG_RELEASED		0x02	/* READ_OPEN, READ reply: the handle is gone */
+
 #define CAS_INFO_SIZE			(4)
 #define CAS_INFO_RESERVED_DEFAULT	(-1)
 
@@ -192,9 +199,9 @@ extern "C"
     CAS_FC_STREAM_END = 46,
     CAS_FC_STREAM_INIT = 47,
     CAS_FC_STREAM_ABORT = 48,
-    CAS_FC_LOB_STREAM_OPEN = 49,
-    CAS_FC_LOB_STREAM_READ = 50,
-    CAS_FC_LOB_STREAM_CLOSE = 51,
+    CAS_FC_STREAM_READ_OPEN = 49,
+    CAS_FC_STREAM_READ = 50,
+    CAS_FC_STREAM_RELEASE = 51,
 
     /* Whenever you want to introduce a new function code, you must add a corresponding function entry to
      * server_fn_table of both CUBRID and (MySQL, Oracle). */
@@ -216,8 +223,9 @@ extern "C"
 #define INTERNAL_LOB_STREAM_MAX_CHUNK (1024 * 1024)
 
 /* Leading byte of every BLOB/CLOB column sent to a PROTOCOL_V14 driver.  It says whether the payload is a
- * reference to stored content or the content itself; the column type alone cannot distinguish them, because a
- * scalar function result (CHAR_TO_CLOB('x')) is a LOB value with no storage behind it. */
+ * reference to stored content (read with CAS_FC_STREAM_READ_*) or the content itself; the column type alone
+ * cannot distinguish them, because a scalar function result (CHAR_TO_CLOB('x')) is a LOB value with no storage
+ * behind it. */
 #define INTERNAL_LOB_WIRE_INLINE ((char) 0)
 #define INTERNAL_LOB_WIRE_REF    ((char) 1)
 
@@ -236,9 +244,9 @@ extern "C"
     PROTOCOL_V10 = 10,		/* Secure Broker/CAS using SSL */
     PROTOCOL_V11 = 11,		/* make out resultset */
     PROTOCOL_V12 = 12,		/* Remove trailing zeros from double and float types */
-    PROTOCOL_V13 = 13,		/* client->server byte-stream transport (CAS_FC_STREAM_*); on develop V13 also
+    PROTOCOL_V13 = 13,		/* byte-stream transport (CAS_FC_STREAM_*, 45-51); on develop V13 also
 				 * makes the CAS-issued session id required for QC/X1 query cancel */
-    PROTOCOL_V14 = 14,		/* internal LOB read streaming: the column carries a locator, not the content */
+    PROTOCOL_V14 = 14,		/* a BLOB/CLOB column leads with INTERNAL_LOB_WIRE_REF / _INLINE */
     CURRENT_PROTOCOL = PROTOCOL_V14
   };
   typedef enum t_cas_protocol T_CAS_PROTOCOL;

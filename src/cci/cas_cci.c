@@ -6873,6 +6873,99 @@ cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf)
   return error;
 }
 
+/*
+ * cci_stream_read_open () - Open a server->client stream
+ *   first_max, flags: 0, 0 to open only; or the bytes buf takes from a first read in the same request, and
+ *                     CAS_STREAM_FLAG_RELEASE_AT_EOF to leave no handle when that read is the whole value
+ *   handle(out): for cci_stream_read () and cci_stream_release (); 0 when nothing was left open
+ *   reply_flags(out): CAS_STREAM_FLAG_EOF, CAS_STREAM_FLAG_RELEASED
+ */
+int
+cci_stream_read_open (int mapped_conn_id, int stream_kind, const char *config, int config_len, int first_max,
+		      char flags, long long *handle, char *buf, int *nread, char *reply_flags, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  int error = CCI_ER_NO_ERROR;
+
+  reset_error_buffer (err_buf);
+  if (config_len < 0 || (config_len > 0 && config == NULL) || first_max < 0 || (first_max > 0 && buf == NULL)
+      || handle == NULL || nread == NULL || reply_flags == NULL)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&(con_handle->err_buf));
+
+  error = qe_stream_read_open (con_handle, stream_kind, config, config_len, first_max, flags, handle, buf, nread,
+			       reply_flags, &(con_handle->err_buf));
+
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+
+  return error;
+}
+
+int
+cci_stream_read (int mapped_conn_id, long long handle, char *buf, int max, char flags, int *nread,
+		 char *reply_flags, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  int error = CCI_ER_NO_ERROR;
+
+  reset_error_buffer (err_buf);
+  if (buf == NULL || max <= 0 || nread == NULL || reply_flags == NULL)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&(con_handle->err_buf));
+
+  error = qe_stream_read (con_handle, handle, buf, max, flags, nread, reply_flags, &(con_handle->err_buf));
+
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+
+  return error;
+}
+
+int
+cci_stream_release (int mapped_conn_id, long long handle, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  int error = CCI_ER_NO_ERROR;
+
+  reset_error_buffer (err_buf);
+
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&(con_handle->err_buf));
+
+  error = qe_stream_release (con_handle, handle, &(con_handle->err_buf));
+
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+
+  return error;
+}
+
 int
 cci_internal_lob_open (int mapped_conn_id, const char *locator, int locator_len, long long start_offset,
 		       long long *token, T_CCI_ERROR * err_buf)
@@ -6990,4 +7083,3 @@ cci_internal_lob_close (int mapped_conn_id, long long token, T_CCI_ERROR * err_b
   con_handle->used = false;
   return error;
 }
-

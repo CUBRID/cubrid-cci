@@ -503,10 +503,16 @@ extern int qe_stream_init (T_CON_HANDLE * con_handle, int stream_kind, const cha
 extern int qe_stream_send_data (T_CON_HANDLE * con_handle, const char *data, int data_len, T_CCI_ERROR * err_buf);
 extern int qe_stream_end (T_CON_HANDLE * con_handle, INT64 * result, T_CCI_ERROR * err_buf);
 extern int qe_stream_abort (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf);
+extern int qe_stream_read_open (T_CON_HANDLE * con_handle, int stream_kind, const char *config, int config_len,
+				int first_max, char flags, long long *handle, char *buf, int *nread, char *reply_flags,
+				T_CCI_ERROR * err_buf);
+extern int qe_stream_read (T_CON_HANDLE * con_handle, long long handle, char *buf, int max, char flags, int *nread,
+			   char *reply_flags, T_CCI_ERROR * err_buf);
+extern int qe_stream_release (T_CON_HANDLE * con_handle, long long handle, T_CCI_ERROR * err_buf);
 extern int qe_lob_stream_open (T_CON_HANDLE * con_handle, const char *locator, int locator_len,
-                               INT64 start_offset, INT64 * token, T_CCI_ERROR * err_buf);
+			       INT64 start_offset, INT64 * token, T_CCI_ERROR * err_buf);
 extern int qe_lob_stream_read (T_CON_HANDLE * con_handle, INT64 token, char *buf, int size, int *nread,
-                               T_CCI_ERROR * err_buf);
+			       T_CCI_ERROR * err_buf);
 extern int qe_lob_stream_close (T_CON_HANDLE * con_handle, INT64 token, T_CCI_ERROR * err_buf);
 
 extern int qe_get_shard_info (T_CON_HANDLE * con_handle, T_CCI_SHARD_INFO ** shard_info, T_CCI_ERROR * err_buf);

@@ -7611,6 +7611,183 @@ qe_stream_abort (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf)
   return err_code;
 }
 
+/* send a stream request already in net_buf and take the reply, which starts with the result code */
+static int
+qe_stream_request (T_CON_HANDLE * con_handle, T_NET_BUF * net_buf, char **result_msg, int *result_msg_size,
+		   T_CCI_ERROR * err_buf)
+{
+  int err_code;
+
+  /* the family (45-51) came with PROTOCOL_V13, and an older CAS closes the connection on a code it does not know */
+  if (!hm_broker_understand_the_protocol (hm_get_broker_version (con_handle), PROTOCOL_V13))
+    {
+      net_buf_clear (net_buf);
+      return CCI_ER_NOT_IMPLEMENTED;
+    }
+
+  if (net_buf->err_code < 0)
+    {
+      err_code = net_buf->err_code;
+      net_buf_clear (net_buf);
+      return err_code;
+    }
+
+  err_code = net_send_msg (con_handle, net_buf->data, net_buf->data_size);
+  net_buf_clear (net_buf);
+  if (err_code < 0)
+    {
+      return err_code;
+    }
+
+  return net_recv_msg (con_handle, result_msg, result_msg_size, err_buf);
+}
+
+/* the bytes and flags a READ_OPEN or READ reply carries at ptr, into buf of max bytes */
+static int
+qe_stream_take_read (char *ptr, char *end, char *buf, int max, int *nread, char *reply_flags)
+{
+  int n, flags;
+
+  if (end - ptr < 2 * NET_SIZE_INT)
+    {
+      return CCI_ER_COMMUNICATION;
+    }
+  NET_STR_TO_INT (n, ptr);
+  ptr += NET_SIZE_INT;
+  NET_STR_TO_INT (flags, ptr);
+  ptr += NET_SIZE_INT;
+  if (n < 0 || n > max || end - ptr < n)
+    {
+      return CCI_ER_COMMUNICATION;
+    }
+
+  if (n > 0)
+    {
+      memcpy (buf, ptr, n);
+    }
+  *nread = n;
+  *reply_flags = (char) flags;
+  return CCI_ER_NO_ERROR;
+}
+
+/* the auto-commit bit the bundled download forms carry, as RELEASE carries its auto-commit byte */
+static char
+qe_stream_read_flags (T_CON_HANDLE * con_handle, char flags)
+{
+  /* the caller's own bit only: the same value means RELEASED in a reply */
+  flags &= CAS_STREAM_FLAG_RELEASE_AT_EOF;
+  if (con_handle->autocommit_mode == CCI_AUTOCOMMIT_TRUE)
+    {
+      flags |= CAS_STREAM_FLAG_AUTO_COMMIT;
+    }
+  return flags;
+}
+
+/* first_max > 0 or CAS_STREAM_FLAG_RELEASE_AT_EOF sends the bundled form: the first piece comes back with the handle */
+int
+qe_stream_read_open (T_CON_HANDLE * con_handle, int stream_kind, const char *config, int config_len, int first_max,
+		     char flags, long long *handle, char *buf, int *nread, char *reply_flags, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_READ_OPEN;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size = 0;
+  bool bundled = (first_max > 0 || (flags & CAS_STREAM_FLAG_RELEASE_AT_EOF));
+  INT64 value = 0;
+
+  *handle = 0;
+  *nread = 0;
+  *reply_flags = 0;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_INT (&net_buf, stream_kind);
+  ADD_ARG_BYTES (&net_buf, config, config_len);
+  if (bundled)
+    {
+      flags = qe_stream_read_flags (con_handle, flags);
+      ADD_ARG_INT (&net_buf, first_max);
+      ADD_ARG_BYTES (&net_buf, &flags, 1);
+    }
+
+  err_code = qe_stream_request (con_handle, &net_buf, &result_msg, &result_msg_size, err_buf);
+  if (err_code >= 0)
+    {
+      if (result_msg == NULL || result_msg_size < NET_SIZE_INT + NET_SIZE_BIGINT)
+	{
+	  err_code = CCI_ER_COMMUNICATION;
+	}
+      else
+	{
+	  NET_STR_TO_BIGINT (value, result_msg + NET_SIZE_INT);
+	  *handle = (long long) value;
+	  if (bundled)
+	    {
+	      err_code = qe_stream_take_read (result_msg + NET_SIZE_INT + NET_SIZE_BIGINT, result_msg + result_msg_size,
+					      buf, first_max, nread, reply_flags);
+	    }
+	}
+    }
+  FREE_MEM (result_msg);
+
+  return err_code;
+}
+
+int
+qe_stream_read (T_CON_HANDLE * con_handle, long long handle, char *buf, int max, char flags, int *nread,
+		char *reply_flags, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_READ;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size = 0;
+
+  *nread = 0;
+  *reply_flags = 0;
+
+  flags = qe_stream_read_flags (con_handle, flags);
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_BIGINT (&net_buf, (INT64) handle);
+  ADD_ARG_INT (&net_buf, max);
+  ADD_ARG_BYTES (&net_buf, &flags, 1);
+
+  err_code = qe_stream_request (con_handle, &net_buf, &result_msg, &result_msg_size, err_buf);
+  if (err_code >= 0)
+    {
+      if (result_msg == NULL || result_msg_size < NET_SIZE_INT)
+	{
+	  err_code = CCI_ER_COMMUNICATION;
+	}
+      else
+	{
+	  err_code = qe_stream_take_read (result_msg + NET_SIZE_INT, result_msg + result_msg_size, buf, max, nread,
+					  reply_flags);
+	}
+    }
+  FREE_MEM (result_msg);
+
+  return err_code;
+}
+
+int
+qe_stream_release (T_CON_HANDLE * con_handle, long long handle, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_RELEASE;
+  char autocommit_flag = (char) con_handle->autocommit_mode;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_BIGINT (&net_buf, (INT64) handle);
+  ADD_ARG_BYTES (&net_buf, &autocommit_flag, 1);
+
+  return qe_stream_request (con_handle, &net_buf, NULL, NULL, err_buf);
+}
+
 /*
  * Internal LOB read streaming.  A BLOB/CLOB column of an internal LOB arrives as a locator, not as content, so the
  * payload is pulled afterwards in bounded chunks.  The three calls mirror the server read cursor csql uses.
@@ -7620,7 +7797,7 @@ qe_lob_stream_open (T_CON_HANDLE * con_handle, const char *locator, int locator_
 		    INT64 * token, T_CCI_ERROR * err_buf)
 {
   T_NET_BUF net_buf;
-  char func_code = CAS_FC_LOB_STREAM_OPEN;
+  char func_code = CAS_FC_STREAM_READ_OPEN;
   int err_code;
   char *result_msg = NULL;
   int result_msg_size;
@@ -7666,7 +7843,7 @@ int
 qe_lob_stream_read (T_CON_HANDLE * con_handle, INT64 token, char *buf, int size, int *nread, T_CCI_ERROR * err_buf)
 {
   T_NET_BUF net_buf;
-  char func_code = CAS_FC_LOB_STREAM_READ;
+  char func_code = CAS_FC_STREAM_READ;
   int err_code;
   char *result_msg = NULL;
   int result_msg_size;
@@ -7734,7 +7911,7 @@ int
 qe_lob_stream_close (T_CON_HANDLE * con_handle, INT64 token, T_CCI_ERROR * err_buf)
 {
   T_NET_BUF net_buf;
-  char func_code = CAS_FC_LOB_STREAM_CLOSE;
+  char func_code = CAS_FC_STREAM_RELEASE;
   char autocommit_flag;
   int err_code;
   char *result_msg = NULL;
