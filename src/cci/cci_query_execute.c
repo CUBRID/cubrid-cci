@@ -2861,12 +2861,9 @@ qe_execute_array (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, T_CCI_QU
 	  cur_cell.value = NULL;
 	  cur_cell.size = 0;
 
-	  if (req_handle->bind_value[idx].value == NULL)
+	  if (req_handle->bind_value[idx].value == NULL || req_handle->bind_value[idx].null_ind[row])
 	    {
-	      cur_cell.u_type = CCI_U_TYPE_NULL;
-	    }
-	  else if (req_handle->bind_value[idx].null_ind[row])
-	    {
+	      /* a NULL keeps the type it is bound with, for the whole array (value NULL) or one row */
 	      cur_cell.u_type = req_handle->bind_value[idx].u_type;
 	    }
 	  else
