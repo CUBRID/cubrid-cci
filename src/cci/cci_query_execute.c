@@ -4852,9 +4852,24 @@ get_windows_charset_code (char *str)
 }
 #endif
 
+/* keeps the string the application may still point to when the new column info repeats it, and frees the other */
+static char *
+col_info_str_keep (char *old_str, char *new_str)
+{
+  if (old_str != NULL && new_str != NULL && strcmp (old_str, new_str) == 0)
+    {
+      FREE_MEM (new_str);
+      return old_str;
+    }
+
+  FREE_MEM (old_str);
+  return new_str;
+}
+
 static int
 prepare_info_decode (char *buf, int *size, T_REQ_HANDLE * req_handle)
 {
+  int i;
   int num_bind_info;
   int num_col_info;
   int remain_size = *size;
@@ -4907,11 +4922,30 @@ prepare_info_decode (char *buf, int *size, T_REQ_HANDLE * req_handle)
       return num_col_info;
     }
 
-  req_handle_col_info_free (req_handle);
+  if (req_handle->col_info != NULL && req_handle->num_col_info == num_col_info)
+    {
+      /* an EXECUTE resends the column info of the plan it ran: the pointer cci_get_result_info returned stays valid */
+      for (i = 0; i < num_col_info; i++)
+	{
+	  T_CCI_COL_INFO *old_col = &req_handle->col_info[i];
+	  T_CCI_COL_INFO *new_col = &col_info[i];
+
+	  new_col->col_name = col_info_str_keep (old_col->col_name, new_col->col_name);
+	  new_col->real_attr = col_info_str_keep (old_col->real_attr, new_col->real_attr);
+	  new_col->class_name = col_info_str_keep (old_col->class_name, new_col->class_name);
+	  new_col->default_value = col_info_str_keep (old_col->default_value, new_col->default_value);
+	  *old_col = *new_col;
+	}
+      FREE_MEM (col_info);
+    }
+  else
+    {
+      req_handle_col_info_free (req_handle);
+      req_handle->num_col_info = num_col_info;
+      req_handle->col_info = col_info;
+    }
 
   req_handle->num_bind = num_bind_info;
-  req_handle->num_col_info = num_col_info;
-  req_handle->col_info = col_info;
   req_handle->stmt_type = (T_CCI_CUBRID_STMT) stmt_type;
   req_handle->first_stmt_type = req_handle->stmt_type;
   req_handle->updatable_flag = updatable_flag;
