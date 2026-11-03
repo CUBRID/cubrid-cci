@@ -948,6 +948,7 @@ req_handle_content_free (T_REQ_HANDLE * req_handle, int reuse)
       qe_bind_value_free (req_handle);
       FREE_MEM (req_handle->bind_mode);
       FREE_MEM (req_handle->bind_value);
+      FREE_MEM (req_handle->unsent_uploads);
     }
   req_handle->valid = 0;
 }

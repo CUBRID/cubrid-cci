@@ -7618,7 +7618,7 @@ qe_stream_request (T_CON_HANDLE * con_handle, T_NET_BUF * net_buf, char **result
 {
   int err_code;
 
-  /* the family (45-51) came with PROTOCOL_V13, and an older CAS closes the connection on a code it does not know */
+  /* the family (45-52) came with PROTOCOL_V13, and an older CAS closes the connection on a code it does not know */
   if (!hm_broker_understand_the_protocol (hm_get_broker_version (con_handle), PROTOCOL_V13))
     {
       net_buf_clear (net_buf);
@@ -7784,6 +7784,19 @@ qe_stream_release (T_CON_HANDLE * con_handle, long long handle, T_CCI_ERROR * er
   net_buf_cp_str (&net_buf, &func_code, 1);
   ADD_ARG_BIGINT (&net_buf, (INT64) handle);
   ADD_ARG_BYTES (&net_buf, &autocommit_flag, 1);
+
+  return qe_stream_request (con_handle, &net_buf, NULL, NULL, err_buf);
+}
+
+int
+qe_stream_upload_release (T_CON_HANDLE * con_handle, long long token, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_UPLOAD_RELEASE;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_BIGINT (&net_buf, (INT64) token);
 
   return qe_stream_request (con_handle, &net_buf, NULL, NULL, err_buf);
 }

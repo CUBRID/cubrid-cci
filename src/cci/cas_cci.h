@@ -1015,6 +1015,8 @@ extern "C"
   extern int cci_stream_read (int mapped_conn_id, long long handle, char *buf, int max, char flags, int *nread,
 			      char *reply_flags, T_CCI_ERROR * err_buf);
   extern int cci_stream_release (int mapped_conn_id, long long handle, T_CCI_ERROR * err_buf);
+  /* The upload belongs to the binding: re-binding the index or closing the statement before an execute releases it,
+   * unless another statement of the connection binds the same token. */
   extern int cci_bind_internal_lob_upload (int mapped_stmt_id, int index, T_CCI_U_TYPE lob_type,
 					   long long token, long long data_length, long long logical_length);
 

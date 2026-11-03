@@ -509,6 +509,7 @@ extern int qe_stream_read_open (T_CON_HANDLE * con_handle, int stream_kind, cons
 extern int qe_stream_read (T_CON_HANDLE * con_handle, long long handle, char *buf, int max, char flags, int *nread,
 			   char *reply_flags, T_CCI_ERROR * err_buf);
 extern int qe_stream_release (T_CON_HANDLE * con_handle, long long handle, T_CCI_ERROR * err_buf);
+extern int qe_stream_upload_release (T_CON_HANDLE * con_handle, long long token, T_CCI_ERROR * err_buf);
 
 extern int qe_get_shard_info (T_CON_HANDLE * con_handle, T_CCI_SHARD_INFO ** shard_info, T_CCI_ERROR * err_buf);
 extern int qe_shard_info_free (T_CCI_SHARD_INFO * shard_info);

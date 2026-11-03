@@ -157,6 +157,7 @@ typedef struct
   T_CCI_CUBRID_STMT first_stmt_type;
   int num_bind;
   T_BIND_VALUE *bind_value;
+  long long *unsent_uploads;	/* per bind, an upload token bound by cci_bind_internal_lob_upload no execute sent */
   char *bind_mode;
   T_CCI_COL_INFO *col_info;
   int bind_array_size;

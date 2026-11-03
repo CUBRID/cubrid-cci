@@ -177,6 +177,7 @@ static int convert_cas_mode_to_driver_mode (int cas_mode);
 static int convert_driver_mode_to_cas_mode (int driver_mode);
 
 static int reset_connect (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, T_CCI_ERROR * err_buf);
+static void discard_unsent_uploads (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int index);
 
 /************************************************************************
  * INTERFACE VARIABLES							*
@@ -1151,6 +1152,7 @@ cci_bind_param (int mapped_stmt_id, int index, T_CCI_A_TYPE a_type, void *value,
       return error;
     }
 
+  discard_unsent_uploads (con_handle, req_handle, index - 1);
   error = qe_bind_param (req_handle, index, a_type, value, UNMEASURED_LENGTH, u_type, flag);
 
   con_handle->used = false;
@@ -1172,6 +1174,7 @@ cci_bind_param_ex (int mapped_stmt_id, int index, T_CCI_A_TYPE a_type, void *val
       return error;
     }
 
+  discard_unsent_uploads (con_handle, req_handle, index - 1);
   error = qe_bind_param (req_handle, index, a_type, value, length, u_type, flag);
 
   con_handle->used = false;
@@ -1420,6 +1423,12 @@ cci_execute (int mapped_stmt_id, char flag, int max_col_size, T_CCI_ERROR * err_
 
 execute_end:
   RESET_START_TIME (con_handle);
+
+  if (error >= 0 && req_handle->unsent_uploads != NULL)
+    {
+      /* the CAS holds the uploads it bound now, and releases them with the statement */
+      memset (req_handle->unsent_uploads, 0, sizeof (long long) * req_handle->num_bind);
+    }
 
   if (error == CCI_ER_QUERY_TIMEOUT && con_handle->disconnect_on_query_timeout)
     {
@@ -2238,6 +2247,8 @@ cci_close_req_handle (int mapped_stmt_id)
   reset_error_buffer (&(con_handle->err_buf));
 
   API_SLOG (con_handle);
+
+  discard_unsent_uploads (con_handle, req_handle, -1);
 
   if (DOES_CONNECTION_HAVE_STMT_POOL (con_handle) && req_handle->sql_text != NULL)
     {
@@ -6721,11 +6732,76 @@ cci_bind_internal_lob_upload (int mapped_stmt_id, int index, T_CCI_U_TYPE lob_ty
       return CCI_ER_INVALID_ARGS;
     }
   {
+    T_CON_HANDLE *con_handle = NULL;
+    T_REQ_HANDLE *req_handle = NULL;
     T_CCI_BIT marker_value;
+    int error;
+
     marker_value.size = marker_length;
     marker_value.buf = marker;
-    return cci_bind_param (mapped_stmt_id, index, CCI_A_TYPE_BIT, &marker_value, upload_type, 0);
+    error = hm_get_statement (mapped_stmt_id, &con_handle, &req_handle);
+    if (error != CCI_ER_NO_ERROR)
+      {
+	return error;
+      }
+    discard_unsent_uploads (con_handle, req_handle, index - 1);
+    error = qe_bind_param (req_handle, index, CCI_A_TYPE_BIT, &marker_value, UNMEASURED_LENGTH, upload_type, 0);
+    if (error >= 0 && req_handle->unsent_uploads == NULL)
+      {
+	req_handle->unsent_uploads = (long long *) CALLOC (req_handle->num_bind, sizeof (long long));
+      }
+    if (error >= 0 && req_handle->unsent_uploads != NULL)
+      {
+	req_handle->unsent_uploads[index - 1] = token;
+      }
+    con_handle->used = false;
+    return error;
   }
+}
+
+/* Is token bound, and not yet sent by an execute, on any statement of the connection? */
+static bool
+upload_is_unsent_anywhere (T_CON_HANDLE * con_handle, long long token)
+{
+  int i, j;
+
+  for (i = 0; i < con_handle->max_req_handle; i++)
+    {
+      T_REQ_HANDLE *other = con_handle->req_handle_table[i];
+
+      for (j = 0; other != NULL && other->unsent_uploads != NULL && j < other->num_bind; j++)
+	{
+	  if (other->unsent_uploads[j] == token)
+	    {
+	      return true;
+	    }
+	}
+    }
+  return false;
+}
+
+/* The binding at index (every binding when index < 0) is replaced or closed: an upload it held that no execute sent
+ * and no other binding holds is released; the CAS keeps one an open statement binds. */
+static void
+discard_unsent_uploads (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int index)
+{
+  T_CCI_ERROR err_buf;
+  long long token;
+  int i;
+
+  for (i = 0; req_handle->unsent_uploads != NULL && i < req_handle->num_bind; i++)
+    {
+      token = req_handle->unsent_uploads[i];
+      if (token == 0 || (index >= 0 && i != index))
+	{
+	  continue;
+	}
+      req_handle->unsent_uploads[i] = 0;
+      if (!upload_is_unsent_anywhere (con_handle, token))
+	{
+	  (void) qe_stream_upload_release (con_handle, token, &err_buf);
+	}
+    }
 }
 
 int
