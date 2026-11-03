@@ -1401,6 +1401,15 @@ con_handle_content_free (T_CON_HANDLE * con_handle)
   FREE_MEM (con_handle->deferred_close_handle_list);
   FREE_MEM (con_handle->last_insert_id);
 
+  while (con_handle->lob_readers != NULL)
+    {
+      T_INTERNAL_LOB_READER *reader = con_handle->lob_readers;
+
+      con_handle->lob_readers = reader->next;
+      FREE_MEM (reader->chunk);
+      FREE_MEM (reader);
+    }
+
   if (con_handle->stmt_pool != NULL)
     {
       cci_mht_destroy (con_handle->stmt_pool, true, true);

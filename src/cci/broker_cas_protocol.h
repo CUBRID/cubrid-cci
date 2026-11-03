@@ -218,9 +218,8 @@ extern "C"
 #define CAS_FC_COPY_SEND_DATA CAS_FC_STREAM_SEND_DATA
 #define CAS_FC_COPY_END       CAS_FC_STREAM_END
 
-/* Largest payload one CAS_FC_LOB_STREAM_READ may ask for.  Both sides bound the request by it so a driver cannot
- * make CAS allocate an arbitrary buffer. */
-#define INTERNAL_LOB_STREAM_MAX_CHUNK (1024 * 1024)
+/* The core bounds one download read by this, whatever was asked. */
+#define STREAM_READ_MAX_CHUNK (1024 * 1024)
 
 /* Leading byte of every BLOB/CLOB column sent to a PROTOCOL_V14 driver.  It says whether the payload is a
  * reference to stored content (read with CAS_FC_STREAM_READ_*) or the content itself; the column type alone

@@ -6966,16 +6966,48 @@ cci_stream_release (int mapped_conn_id, long long handle, T_CCI_ERROR * err_buf)
   return error;
 }
 
+/* STREAM_KIND_INTERNAL_LOB_READ, as the engine's internal_lob_stream_kind.h defines it.
+ * config: version (int), 0 (int), start offset (int64), locator (the rest, no NUL) */
+#define STREAM_KIND_INTERNAL_LOB_READ 4
+#define INTERNAL_LOB_READ_CONFIG_VERSION 1
+#define INTERNAL_LOB_READ_CONFIG_HEADER_SIZE (NET_SIZE_INT * 2 + NET_SIZE_INT64)
+/* the open brings this much (JDBC's CHUNK_SIZE), so a value no larger leaves no handle behind */
+#define INTERNAL_LOB_READ_FIRST_CHUNK (128 * 1024)
+
+/* the link that points at the reader of token, or at the end of the list */
+static T_INTERNAL_LOB_READER **
+internal_lob_reader_link (T_CON_HANDLE * con_handle, long long token)
+{
+  T_INTERNAL_LOB_READER **link = &con_handle->lob_readers;
+
+  while (*link != NULL && (*link)->token != token)
+    {
+      link = &(*link)->next;
+    }
+  return link;
+}
+
+/*
+ * cci_internal_lob_open () - Open a download of the value a locator names
+ *   token(out): for cci_internal_lob_read () and cci_internal_lob_close ()
+ *
+ * The open brings the first INTERNAL_LOB_READ_FIRST_CHUNK bytes; the server releases the handle at eof.
+ */
 int
 cci_internal_lob_open (int mapped_conn_id, const char *locator, int locator_len, long long start_offset,
 		       long long *token, T_CCI_ERROR * err_buf)
 {
   T_CON_HANDLE *con_handle = NULL;
-  INT64 opened_token = 0;
+  T_INTERNAL_LOB_READER *reader = NULL;
+  char *config = NULL;
+  int config_len;
+  long long handle = 0;
+  char reply_flags = 0;
   int error;
 
   reset_error_buffer (err_buf);
-  if (locator == NULL || locator_len <= 0 || start_offset < 0 || token == NULL)
+  if (locator == NULL || locator_len <= 0 || locator_len > INT_MAX - INTERNAL_LOB_READ_CONFIG_HEADER_SIZE
+      || start_offset < 0 || token == NULL)
     {
       set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
       return CCI_ER_INVALID_ARGS;
@@ -6989,8 +7021,29 @@ cci_internal_lob_open (int mapped_conn_id, const char *locator, int locator_len,
       return error;
     }
   reset_error_buffer (&con_handle->err_buf);
-  error = qe_lob_stream_open (con_handle, locator, locator_len, (INT64) start_offset, &opened_token,
-			      &con_handle->err_buf);
+
+  config_len = INTERNAL_LOB_READ_CONFIG_HEADER_SIZE + locator_len;
+  config = (char *) MALLOC (config_len);
+  reader = (T_INTERNAL_LOB_READER *) MALLOC (sizeof (T_INTERNAL_LOB_READER));
+  if (reader != NULL)
+    {
+      memset (reader, 0, sizeof (T_INTERNAL_LOB_READER));
+      reader->chunk = (char *) MALLOC (INTERNAL_LOB_READ_FIRST_CHUNK);
+    }
+  if (config == NULL || reader == NULL || reader->chunk == NULL)
+    {
+      error = CCI_ER_NO_MORE_MEMORY;
+      goto end;
+    }
+
+  memset (config, 0, INTERNAL_LOB_READ_CONFIG_HEADER_SIZE);
+  config[NET_SIZE_INT - 1] = INTERNAL_LOB_READ_CONFIG_VERSION;
+  cci_stream_pack_int64 (config + NET_SIZE_INT * 2, (unsigned long long) start_offset);
+  memcpy (config + INTERNAL_LOB_READ_CONFIG_HEADER_SIZE, locator, locator_len);
+
+  error = qe_stream_read_open (con_handle, STREAM_KIND_INTERNAL_LOB_READ, config, config_len,
+			       INTERNAL_LOB_READ_FIRST_CHUNK, CAS_STREAM_FLAG_RELEASE_AT_EOF, &handle, reader->chunk,
+			       &reader->chunk_len, &reply_flags, &con_handle->err_buf);
   while (IS_OUT_TRAN (con_handle) && IS_ER_TO_RECONNECT (error, con_handle->err_buf.err_code))
     {
       if (NEED_TO_RECONNECT (con_handle, error))
@@ -7002,13 +7055,34 @@ cci_internal_lob_open (int mapped_conn_id, const char *locator, int locator_len,
 	      break;
 	    }
 	}
-      error = qe_lob_stream_open (con_handle, locator, locator_len, (INT64) start_offset, &opened_token,
-				  &con_handle->err_buf);
+      error = qe_stream_read_open (con_handle, STREAM_KIND_INTERNAL_LOB_READ, config, config_len,
+				   INTERNAL_LOB_READ_FIRST_CHUNK, CAS_STREAM_FLAG_RELEASE_AT_EOF, &handle,
+				   reader->chunk, &reader->chunk_len, &reply_flags, &con_handle->err_buf);
     }
-  if (error >= 0)
+  if (error < 0)
     {
-      *token = (long long) opened_token;
+      goto end;
     }
+
+  reader->handle = (reply_flags & CAS_STREAM_FLAG_RELEASED) ? 0 : handle;
+  reader->eof = (reply_flags & CAS_STREAM_FLAG_EOF) != 0;
+  if (reader->chunk_len == 0)
+    {
+      FREE_MEM (reader->chunk);
+    }
+  reader->token = ++con_handle->last_lob_reader_token;
+  reader->next = con_handle->lob_readers;
+  con_handle->lob_readers = reader;
+  *token = reader->token;
+  reader = NULL;
+
+end:
+  if (reader != NULL)
+    {
+      FREE_MEM (reader->chunk);
+      FREE_MEM (reader);
+    }
+  FREE_MEM (config);
   if (error < 0)
     {
       set_error_buffer (&con_handle->err_buf, error, NULL);
@@ -7018,15 +7092,17 @@ cci_internal_lob_open (int mapped_conn_id, const char *locator, int locator_len,
   return error;
 }
 
+/* nread is 0 at the end of the value; past the eof flag no request is sent */
 int
 cci_internal_lob_read (int mapped_conn_id, long long token, char *buf, int size, int *nread, T_CCI_ERROR * err_buf)
 {
   T_CON_HANDLE *con_handle = NULL;
-  int read_count = 0;
+  T_INTERNAL_LOB_READER *reader;
+  char reply_flags = 0;
   int error;
 
   reset_error_buffer (err_buf);
-  if (token <= 0 || buf == NULL || size <= 0 || size > INTERNAL_LOB_STREAM_MAX_CHUNK || nread == NULL)
+  if (token <= 0 || buf == NULL || size <= 0 || size > STREAM_READ_MAX_CHUNK || nread == NULL)
     {
       set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
       return CCI_ER_INVALID_ARGS;
@@ -7040,11 +7116,39 @@ cci_internal_lob_read (int mapped_conn_id, long long token, char *buf, int size,
       return error;
     }
   reset_error_buffer (&con_handle->err_buf);
-  error = qe_lob_stream_read (con_handle, (INT64) token, buf, size, &read_count, &con_handle->err_buf);
-  if (error >= 0)
+
+  reader = *internal_lob_reader_link (con_handle, token);
+  if (reader == NULL)
     {
-      *nread = read_count;
+      error = CCI_ER_INVALID_ARGS;
     }
+  else if (reader->chunk_pos < reader->chunk_len)
+    {
+      /* the piece the open brought */
+      *nread = MIN (size, reader->chunk_len - reader->chunk_pos);
+      memcpy (buf, reader->chunk + reader->chunk_pos, *nread);
+      reader->chunk_pos += *nread;
+      if (reader->chunk_pos == reader->chunk_len)
+	{
+	  FREE_MEM (reader->chunk);
+	  reader->chunk_pos = reader->chunk_len = 0;
+	}
+    }
+  else if (!reader->eof && reader->handle != 0)
+    {
+      /* a failed read keeps the handle for cci_internal_lob_close () */
+      error = qe_stream_read (con_handle, reader->handle, buf, size, CAS_STREAM_FLAG_RELEASE_AT_EOF, nread,
+			      &reply_flags, &con_handle->err_buf);
+      if (reply_flags & CAS_STREAM_FLAG_RELEASED)
+	{
+	  reader->handle = 0;
+	}
+      if (reply_flags & CAS_STREAM_FLAG_EOF)
+	{
+	  reader->eof = true;
+	}
+    }
+
   if (error < 0)
     {
       set_error_buffer (&con_handle->err_buf, error, NULL);
@@ -7054,10 +7158,13 @@ cci_internal_lob_read (int mapped_conn_id, long long token, char *buf, int size,
   return error;
 }
 
+/* releases the handle only while the server still has it; closing a closed reader is not an error */
 int
 cci_internal_lob_close (int mapped_conn_id, long long token, T_CCI_ERROR * err_buf)
 {
   T_CON_HANDLE *con_handle = NULL;
+  T_INTERNAL_LOB_READER **link;
+  T_INTERNAL_LOB_READER *reader;
   int error;
 
   reset_error_buffer (err_buf);
@@ -7074,7 +7181,20 @@ cci_internal_lob_close (int mapped_conn_id, long long token, T_CCI_ERROR * err_b
       return error;
     }
   reset_error_buffer (&con_handle->err_buf);
-  error = qe_lob_stream_close (con_handle, (INT64) token, &con_handle->err_buf);
+
+  link = internal_lob_reader_link (con_handle, token);
+  reader = *link;
+  if (reader != NULL)
+    {
+      *link = reader->next;
+      if (reader->handle != 0)
+	{
+	  error = qe_stream_release (con_handle, reader->handle, &con_handle->err_buf);
+	}
+      FREE_MEM (reader->chunk);
+      FREE_MEM (reader);
+    }
+
   if (error < 0)
     {
       set_error_buffer (&con_handle->err_buf, error, NULL);

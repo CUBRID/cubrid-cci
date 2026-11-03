@@ -1020,7 +1020,8 @@ extern "C"
 
   /* Internal LOB read streaming.  A BLOB/CLOB column of an internal LOB is fetched as a locator plus the value's
    * byte length (cci_get_data with CCI_A_TYPE_INTERNAL_LOB); the payload is then pulled in bounded chunks so a
-   * multi-gigabyte value never has to sit in client memory. */
+   * multi-gigabyte value never has to sit in client memory.  The reads are a download of stream kind 4
+   * (cci_stream_read_open ()); read returns 0 bytes at the end, and close releases a handle still open. */
   extern int cci_internal_lob_open (int mapped_conn_id, const char *locator, int locator_len,
 				    long long start_offset, long long *token, T_CCI_ERROR * err_buf);
   extern int cci_internal_lob_read (int mapped_conn_id, long long token, char *buf, int size, int *nread,

@@ -205,6 +205,19 @@ typedef struct
   bool is_connected;
 } T_SSL_HANDLE;
 
+/* one cci_internal_lob_open (): its download handle and the first piece the open brought */
+typedef struct t_internal_lob_reader T_INTERNAL_LOB_READER;
+struct t_internal_lob_reader
+{
+  long long token;
+  long long handle;		/* 0 once the server released it */
+  bool eof;
+  char *chunk;
+  int chunk_pos;
+  int chunk_len;
+  T_INTERNAL_LOB_READER *next;
+};
+
 typedef struct
 {
   int id;
@@ -281,6 +294,10 @@ typedef struct
 
   /* ssl */
   T_SSL_HANDLE ssl_handle;
+
+  /* cci_internal_lob_open () readers not closed yet */
+  T_INTERNAL_LOB_READER *lob_readers;
+  long long last_lob_reader_token;
 
 } T_CON_HANDLE;
 
