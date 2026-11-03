@@ -94,8 +94,6 @@ EXPORTS
 	cci_internal_lob_open
 	cci_internal_lob_read
 	cci_internal_lob_close
-	cci_copy_send_data
-	cci_copy_end
 	cci_get_dbms_type
 	cci_register_out_param
 	cci_cancel
