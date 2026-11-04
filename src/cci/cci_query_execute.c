@@ -275,6 +275,12 @@ qe_end_tran (T_CON_HANDLE * con_handle, char type, T_CCI_ERROR * err_buf)
       return CCI_ER_COMMUNICATION;
     }
 
+  if (con_handle->broker_info[BROKER_INFO_STATEMENT_POOLING] != CAS_STATEMENT_POOLING_ON)
+    {
+      /* the request handles freed below take their bindings with them */
+      qe_discard_all_unsent_uploads (con_handle, type != CCI_TRAN_ROLLBACK);
+    }
+
   net_buf_init (&net_buf);
 
   net_buf_cp_str (&net_buf, &func_code, 1);
@@ -1370,6 +1376,7 @@ qe_close_req_handle_all (T_CON_HANDLE * con_handle)
   int i;
   T_REQ_HANDLE *req_handle;
 
+  qe_discard_all_unsent_uploads (con_handle, false);
   /* close handle in req handle table */
   for (i = 0; i < con_handle->max_req_handle; i++)
     {
@@ -7799,4 +7806,67 @@ qe_stream_upload_release (T_CON_HANDLE * con_handle, long long token, T_CCI_ERRO
   ADD_ARG_BIGINT (&net_buf, (INT64) token);
 
   return qe_stream_request (con_handle, &net_buf, NULL, NULL, err_buf);
+}
+
+/* Is token bound, and not yet sent by an execute, on any statement of the connection? */
+static bool
+upload_is_unsent_anywhere (T_CON_HANDLE * con_handle, long long token)
+{
+  int i, j;
+
+  for (i = 0; i < con_handle->max_req_handle; i++)
+    {
+      T_REQ_HANDLE *other = con_handle->req_handle_table[i];
+
+      for (j = 0; other != NULL && other->unsent_uploads != NULL && j < other->num_bind; j++)
+	{
+	  if (other->unsent_uploads[j] == token)
+	    {
+	      return true;
+	    }
+	}
+    }
+  return false;
+}
+
+/* The binding at index (every binding when index < 0) is replaced or closed: an upload it held that no execute sent
+ * and no other binding holds is released; the CAS keeps one an open statement binds. */
+void
+qe_discard_unsent_uploads (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int index)
+{
+  T_CCI_ERROR err_buf;
+  long long token;
+  int i;
+
+  for (i = 0; req_handle->unsent_uploads != NULL && i < req_handle->num_bind; i++)
+    {
+      token = req_handle->unsent_uploads[i];
+      if (token == 0 || (index >= 0 && i != index))
+	{
+	  continue;
+	}
+      req_handle->unsent_uploads[i] = 0;
+      if (!upload_is_unsent_anywhere (con_handle, token))
+	{
+	  (void) qe_stream_upload_release (con_handle, token, &err_buf);
+	}
+    }
+}
+
+/* The handles a transaction end or a close-all frees together (all of them, or the unholdable ones) go with their
+ * bindings: release the unsent uploads first. */
+void
+qe_discard_all_unsent_uploads (T_CON_HANDLE * con_handle, bool keep_holdable)
+{
+  int i;
+
+  for (i = 0; i < con_handle->max_req_handle; i++)
+    {
+      T_REQ_HANDLE *req_handle = con_handle->req_handle_table[i];
+
+      if (req_handle != NULL && !(keep_holdable && (req_handle->prepare_flag & CCI_PREPARE_HOLDABLE) != 0))
+	{
+	  qe_discard_unsent_uploads (con_handle, req_handle, -1);
+	}
+    }
 }
