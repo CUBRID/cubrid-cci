@@ -158,6 +158,7 @@ typedef struct
   int num_bind;
   T_BIND_VALUE *bind_value;
   long long *unsent_uploads;	/* per bind, an upload token bound by cci_bind_internal_lob_upload no execute sent */
+  long long *bound_uploads;	/* per bind, the upload token bound there, executed or not */
   char *bind_mode;
   T_CCI_COL_INFO *col_info;
   int bind_array_size;

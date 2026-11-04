@@ -6749,10 +6749,13 @@ cci_bind_internal_lob_upload (int mapped_stmt_id, int index, T_CCI_U_TYPE lob_ty
     if (error >= 0 && req_handle->unsent_uploads == NULL)
       {
 	req_handle->unsent_uploads = (long long *) CALLOC (req_handle->num_bind, sizeof (long long));
+	req_handle->bound_uploads = (long long *) CALLOC (req_handle->num_bind, sizeof (long long));
       }
-    if (error >= 0 && req_handle->unsent_uploads != NULL)
+    if (error >= 0 && req_handle->unsent_uploads != NULL && req_handle->bound_uploads != NULL)
       {
 	req_handle->unsent_uploads[index - 1] = token;
+	req_handle->bound_uploads[index - 1] = token;
+	qe_hold_shared_upload (con_handle, req_handle, token);
       }
     con_handle->used = false;
     return error;

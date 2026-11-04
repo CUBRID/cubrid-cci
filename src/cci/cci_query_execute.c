@@ -7840,8 +7840,16 @@ qe_discard_unsent_uploads (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle,
 
   for (i = 0; req_handle->unsent_uploads != NULL && i < req_handle->num_bind; i++)
     {
+      if (index >= 0 && i != index)
+	{
+	  continue;
+	}
+      if (req_handle->bound_uploads != NULL)
+	{
+	  req_handle->bound_uploads[i] = 0;
+	}
       token = req_handle->unsent_uploads[i];
-      if (token == 0 || (index >= 0 && i != index))
+      if (token == 0)
 	{
 	  continue;
 	}
@@ -7867,6 +7875,53 @@ qe_discard_all_unsent_uploads (T_CON_HANDLE * con_handle, bool keep_holdable)
       if (req_handle != NULL && !(keep_holdable && (req_handle->prepare_flag & CCI_PREPARE_HOLDABLE) != 0))
 	{
 	  qe_discard_unsent_uploads (con_handle, req_handle, -1);
+	}
+    }
+}
+
+static int
+qe_stream_upload_hold (T_CON_HANDLE * con_handle, int server_handle_id, long long token, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_UPLOAD_HOLD;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_INT (&net_buf, server_handle_id);
+  ADD_ARG_BIGINT (&net_buf, (INT64) token);
+
+  return qe_stream_request (con_handle, &net_buf, NULL, NULL, err_buf);
+}
+
+/* req_handle has just bound token. If another statement of the connection binds it too, every one of them still to
+ * execute with it holds it on the CAS, so closing or re-executing one does not release it under the others. */
+void
+qe_hold_shared_upload (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, long long token)
+{
+  T_CCI_ERROR err_buf;
+  bool shared = false;
+  int i, j;
+
+  for (i = 0; i < con_handle->max_req_handle && !shared; i++)
+    {
+      T_REQ_HANDLE *other = con_handle->req_handle_table[i];
+
+      for (j = 0; other != NULL && other != req_handle && other->bound_uploads != NULL && j < other->num_bind; j++)
+	{
+	  shared = shared || other->bound_uploads[j] == token;
+	}
+    }
+  for (i = 0; shared && i < con_handle->max_req_handle; i++)
+    {
+      T_REQ_HANDLE *binder = con_handle->req_handle_table[i];
+
+      for (j = 0; binder != NULL && binder->unsent_uploads != NULL && j < binder->num_bind; j++)
+	{
+	  if (binder->unsent_uploads[j] == token)
+	    {
+	      (void) qe_stream_upload_hold (con_handle, binder->server_handle_id, token, &err_buf);
+	      break;
+	    }
 	}
     }
 }

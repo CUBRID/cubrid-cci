@@ -204,6 +204,8 @@ extern "C"
     CAS_FC_STREAM_RELEASE = 51,
     /* Drop uploads the driver discarded before an execute bound them; one an open statement binds stays. */
     CAS_FC_STREAM_UPLOAD_RELEASE = 52,
+    /* The statement handle holds these uploads before it executes, so closing another statement keeps them. */
+    CAS_FC_STREAM_UPLOAD_HOLD = 53,
 
     /* Whenever you want to introduce a new function code, you must add a corresponding function entry to
      * server_fn_table of both CUBRID and (MySQL, Oracle). */
@@ -245,7 +247,7 @@ extern "C"
     PROTOCOL_V10 = 10,		/* Secure Broker/CAS using SSL */
     PROTOCOL_V11 = 11,		/* make out resultset */
     PROTOCOL_V12 = 12,		/* Remove trailing zeros from double and float types */
-    PROTOCOL_V13 = 13,		/* byte-stream transport (CAS_FC_STREAM_*, 45-52); on develop V13 also
+    PROTOCOL_V13 = 13,		/* byte-stream transport (CAS_FC_STREAM_*, 45-53); on develop V13 also
 				 * makes the CAS-issued session id required for QC/X1 query cancel */
     PROTOCOL_V14 = 14,		/* a BLOB/CLOB column leads with INTERNAL_LOB_WIRE_REF / _INLINE */
     CURRENT_PROTOCOL = PROTOCOL_V14
