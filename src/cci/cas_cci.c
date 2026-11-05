@@ -4613,6 +4613,10 @@ cci_get_err_msg_internal (int error)
     case CCI_ER_SSL_HANDSHAKE:
       return "SSL handshake failure";
 
+    case CCI_ER_NOT_SUPPORTED_PROTOCOL:
+      return "The connected server uses an unsupported protocol version. "
+	"This driver only supports servers using PROTOCOL_V13 or later.";
+
     case CAS_ER_INTERNAL:
       return "Not used";
 
