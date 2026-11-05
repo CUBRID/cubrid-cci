@@ -575,6 +575,7 @@ qe_execute (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, char flag, int
   int remain_msg_size = 0;
   int remaining_time = 0;
   bool use_server_query_cancel = false;
+  bool typed_null;
   int shard_id;
   T_BROKER_VERSION broker_ver;
 
@@ -649,13 +650,13 @@ qe_execute (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, char flag, int
       ADD_ARG_INT (&net_buf, 0);
     }
 
+  typed_null = hm_broker_understand_the_protocol (broker_ver, PROTOCOL_V13);
   for (i = 0; i < req_handle->num_bind; i++)
     {
       bind_value_to_net_buf (&net_buf, req_handle->bind_value[i].u_type, req_handle->bind_value[i].value,
 			     req_handle->bind_value[i].size, con_handle->charset,
 			     is_set_default_value_if_null (con_handle, req_handle->stmt_type,
-							   req_handle->bind_mode[i]),
-			     hm_broker_understand_the_protocol (broker_ver, PROTOCOL_V13));
+							   req_handle->bind_mode[i]), typed_null);
     }
 
   if (net_buf.err_code < 0)
@@ -2827,6 +2828,7 @@ qe_execute_array (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, T_CCI_QU
   int remaining_time = 0;
   int shard_id;
   T_BROKER_VERSION broker_ver;
+  bool typed_null;
 
   net_buf_init (&net_buf);
 
@@ -2853,6 +2855,7 @@ qe_execute_array (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, T_CCI_QU
   autocommit_flag = (char) con_handle->autocommit_mode;
   ADD_ARG_BYTES (&net_buf, &autocommit_flag, 1);
 
+  typed_null = hm_broker_understand_the_protocol (broker_ver, PROTOCOL_V13);
   for (row = 0; row < req_handle->bind_array_size; row++)
     {
       for (idx = 0; idx < req_handle->num_bind; idx++)
@@ -2996,7 +2999,7 @@ qe_execute_array (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, T_CCI_QU
 		}
 	    }
 	  bind_value_to_net_buf (&net_buf, cur_cell.u_type, cur_cell.value, cur_cell.size, con_handle->charset, false,
-				 hm_broker_understand_the_protocol (hm_get_broker_version (con_handle), PROTOCOL_V13));
+				 typed_null);
 	  if (cur_cell.flag == BIND_PTR_DYNAMIC)
 	    {
 	      FREE_MEM (cur_cell.value);
