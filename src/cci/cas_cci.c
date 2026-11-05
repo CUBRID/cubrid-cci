@@ -17,7 +17,6 @@
  */
 
 
-
 /*
  * cas_cci.c -
  */
@@ -34,6 +33,7 @@
 #include <string.h>
 #include <time.h>
 #include <assert.h>
+#include <limits.h>
 #include <sys/timeb.h>
 #include <stdarg.h>
 
@@ -50,11 +50,9 @@
 #include <sys/socket.h>
 #endif
 
-
 /************************************************************************
  * OTHER IMPORTED HEADER FILES						*
  ************************************************************************/
-
 
 #include "cci_version.h"
 
@@ -127,7 +125,6 @@ int wsa_initialize ();
 #define CCI_DS_DEFAULT_LOCK_TIMEOUT_DEFAULT 		CCI_LOCK_TIMEOUT_DEFAULT
 #define CCI_DS_LOGIN_TIMEOUT_DEFAULT			(CCI_LOGIN_TIMEOUT_DEFAULT)
 #define CCI_DS_USESSL_DEFAULT 	false
-
 
 #define CON_ID(a) ((a) / CON_HANDLE_ID_FACTOR)
 #define REQ_ID(a) ((a) % CON_HANDLE_ID_FACTOR)
@@ -233,7 +230,6 @@ CCI_MALLOC_FUNCTION cci_malloc = malloc;
 CCI_CALLOC_FUNCTION cci_calloc = calloc;
 CCI_REALLOC_FUNCTION cci_realloc = realloc;
 CCI_FREE_FUNCTION cci_free = free;
-
 
 #ifdef CCI_DEBUG
 /*
@@ -665,7 +661,6 @@ cas_end_session (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf)
 	    }
 	}
 
-
       error = qe_end_session (con_handle, err_buf);
     }
 
@@ -784,6 +779,7 @@ cci_end_tran_internal (T_CON_HANDLE * con_handle, char type)
        * commit if a rollback is done after commit, these req_handles should be closed or freed */
       if (con_handle->broker_info[BROKER_INFO_STATEMENT_POOLING] != CAS_STATEMENT_POOLING_ON)
 	{
+	  qe_discard_all_unsent_uploads (con_handle, false);
 	  hm_req_handle_free_all (con_handle);
 	}
       else
@@ -1156,6 +1152,7 @@ cci_bind_param (int mapped_stmt_id, int index, T_CCI_A_TYPE a_type, void *value,
       return error;
     }
 
+  qe_discard_unsent_uploads (con_handle, req_handle, index - 1);
   error = qe_bind_param (req_handle, index, a_type, value, UNMEASURED_LENGTH, u_type, flag);
 
   con_handle->used = false;
@@ -1177,6 +1174,7 @@ cci_bind_param_ex (int mapped_stmt_id, int index, T_CCI_A_TYPE a_type, void *val
       return error;
     }
 
+  qe_discard_unsent_uploads (con_handle, req_handle, index - 1);
   error = qe_bind_param (req_handle, index, a_type, value, length, u_type, flag);
 
   con_handle->used = false;
@@ -1425,6 +1423,12 @@ cci_execute (int mapped_stmt_id, char flag, int max_col_size, T_CCI_ERROR * err_
 
 execute_end:
   RESET_START_TIME (con_handle);
+
+  if (error >= 0 && req_handle->unsent_uploads != NULL)
+    {
+      /* the CAS holds the uploads it bound now, and releases them with the statement */
+      memset (req_handle->unsent_uploads, 0, sizeof (long long) * req_handle->num_bind);
+    }
 
   if (error == CCI_ER_QUERY_TIMEOUT && con_handle->disconnect_on_query_timeout)
     {
@@ -2243,6 +2247,8 @@ cci_close_req_handle (int mapped_stmt_id)
   reset_error_buffer (&(con_handle->err_buf));
 
   API_SLOG (con_handle);
+
+  qe_discard_unsent_uploads (con_handle, req_handle, -1);
 
   if (DOES_CONNECTION_HAVE_STMT_POOL (con_handle) && req_handle->sql_text != NULL)
     {
@@ -3922,7 +3928,7 @@ ret:
 
 int
 cci_bfile_write (int mapped_conn_id, T_CCI_BFILE bfile, long long start_pos, int length, const char *buf,
-		T_CCI_ERROR * err_buf)
+		 T_CCI_ERROR * err_buf)
 {
 #ifdef CCI_DEBUG
   CCI_DEBUG_PRINT (print_debug_msg
@@ -3934,7 +3940,7 @@ cci_bfile_write (int mapped_conn_id, T_CCI_BFILE bfile, long long start_pos, int
 
 int
 cci_cfile_write (int mapped_conn_id, T_CCI_CFILE cfile, long long start_pos, int length, const char *buf,
-		T_CCI_ERROR * err_buf)
+		 T_CCI_ERROR * err_buf)
 {
 #ifdef CCI_DEBUG
   CCI_DEBUG_PRINT (print_debug_msg
@@ -4020,9 +4026,9 @@ ret:
   return error;
 }
 
-
 int
-cci_bfile_read (int mapped_conn_id, T_CCI_BFILE bfile, long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf)
+cci_bfile_read (int mapped_conn_id, T_CCI_BFILE bfile, long long start_pos, int length, char *buf,
+		T_CCI_ERROR * err_buf)
 {
 #ifdef CCI_DEBUG
   CCI_DEBUG_PRINT (print_debug_msg
@@ -4032,9 +4038,9 @@ cci_bfile_read (int mapped_conn_id, T_CCI_BFILE bfile, long long start_pos, int 
   return cci_lob_read (mapped_conn_id, bfile, start_pos, length, buf, err_buf);
 }
 
-
 int
-cci_cfile_read (int mapped_conn_id, T_CCI_CFILE cfile, long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf)
+cci_cfile_read (int mapped_conn_id, T_CCI_CFILE cfile, long long start_pos, int length, char *buf,
+		T_CCI_ERROR * err_buf)
 {
 #ifdef CCI_DEBUG
   CCI_DEBUG_PRINT (print_debug_msg
@@ -4043,7 +4049,6 @@ cci_cfile_read (int mapped_conn_id, T_CCI_CFILE cfile, long long start_pos, int 
 
   return cci_lob_read (mapped_conn_id, cfile, start_pos, length, buf, err_buf);
 }
-
 
 static int
 cci_lob_free (void *lob)
@@ -4061,20 +4066,17 @@ cci_lob_free (void *lob)
   return 0;
 }
 
-
 int
 cci_bfile_free (T_CCI_BFILE bfile)
 {
   return cci_lob_free (bfile);
 }
 
-
 int
 cci_cfile_free (T_CCI_CFILE cfile)
 {
   return cci_lob_free (cfile);
 }
-
 
 #ifdef CCI_XA
 int
@@ -4203,7 +4205,6 @@ cci_xa_end_tran (int mapped_conn_id, XID * xid, char type, T_CCI_ERROR * err_buf
   return error;
 }
 #endif
-
 
 int
 cci_get_dbms_type (int mapped_conn_id)
@@ -4611,6 +4612,10 @@ cci_get_err_msg_internal (int error)
 
     case CCI_ER_SSL_HANDSHAKE:
       return "SSL handshake failure";
+
+    case CCI_ER_NOT_SUPPORTED_PROTOCOL:
+      return "The connected server uses an unsupported protocol version. "
+	"This driver only supports servers using PROTOCOL_V13 or later.";
 
     case CAS_ER_INTERNAL:
       return "Not used";
@@ -5537,7 +5542,6 @@ cci_property_get_bool_internal (T_CCI_PROPERTIES * prop, T_CCI_DATASOURCE_KEY ke
 {
   char *tmp;
 
-
   assert (out_value != NULL);
   assert (err_buf != NULL);
 
@@ -6195,7 +6199,6 @@ cci_datasource_change_property (T_CCI_DATASOURCE * ds, const char *key, const ch
 	  goto change_property_end;
 	}
 
-
       if (v > ds->max_pool_size)
 	{
 	  error = CCI_ER_INVALID_PROPERTY_VALUE;
@@ -6676,5 +6679,565 @@ cci_get_cas_info (int mapped_conn_id, char *info_buf, int buf_length, T_CCI_ERRO
   get_last_error (con_handle, err_buf);
   con_handle->used = false;
 
+  return error;
+}
+
+static void
+cci_stream_pack_int64 (char *ptr, unsigned long long value)
+{
+  int i;
+  for (i = 7; i >= 0; i--)
+    {
+      ptr[i] = (char) (value & 0xff);
+      value >>= 8;
+    }
+}
+
+int
+cci_stream_init_internal_lob (int mapped_conn_id, T_CCI_U_TYPE lob_type, long long data_length,
+			      long long logical_length, T_CCI_ERROR * err_buf)
+{
+  char config[20];
+  int stream_type;
+
+  if ((lob_type != CCI_U_TYPE_BLOB && lob_type != CCI_U_TYPE_CLOB) || data_length < 0 || logical_length < 0)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+  stream_type = (lob_type == CCI_U_TYPE_BLOB) ? 0 : 1;
+  config[0] = config[1] = config[2] = 0;
+  config[3] = (char) stream_type;
+  cci_stream_pack_int64 (config + 4, (unsigned long long) data_length);
+  cci_stream_pack_int64 (config + 12, (unsigned long long) logical_length);
+  return cci_stream_init (mapped_conn_id, 1, config, sizeof (config), err_buf);
+}
+
+int
+cci_bind_internal_lob_upload (int mapped_stmt_id, int index, T_CCI_U_TYPE lob_type, long long token,
+			      long long data_length, long long logical_length)
+{
+  char marker[160];
+  T_CCI_U_TYPE upload_type;
+  char type_char;
+  int marker_length;
+
+  if ((lob_type != CCI_U_TYPE_BLOB && lob_type != CCI_U_TYPE_CLOB) || token <= 0 || data_length < 0
+      || logical_length < 0)
+    {
+      return CCI_ER_INVALID_ARGS;
+    }
+  type_char = (lob_type == CCI_U_TYPE_BLOB) ? 'B' : 'C';
+  upload_type = (lob_type == CCI_U_TYPE_BLOB) ? CCI_U_TYPE_INTERNAL_BLOB_UPLOAD : CCI_U_TYPE_INTERNAL_CLOB_UPLOAD;
+  marker_length = snprintf (marker, sizeof (marker), "@internal_lob_upload:%c:%lld:%lld:%lld", type_char, token,
+			    data_length, logical_length);
+  if (marker_length <= 0 || marker_length >= (int) sizeof (marker))
+    {
+      return CCI_ER_INVALID_ARGS;
+    }
+  {
+    T_CON_HANDLE *con_handle = NULL;
+    T_REQ_HANDLE *req_handle = NULL;
+    T_CCI_BIT marker_value;
+    int error;
+
+    marker_value.size = marker_length;
+    marker_value.buf = marker;
+    error = hm_get_statement (mapped_stmt_id, &con_handle, &req_handle);
+    if (error != CCI_ER_NO_ERROR)
+      {
+	return error;
+      }
+    qe_discard_unsent_uploads (con_handle, req_handle, index - 1);
+    error = qe_bind_param (req_handle, index, CCI_A_TYPE_BIT, &marker_value, UNMEASURED_LENGTH, upload_type, 0);
+    if (error >= 0 && req_handle->unsent_uploads == NULL)
+      {
+	req_handle->unsent_uploads = (long long *) CALLOC (req_handle->num_bind, sizeof (long long));
+	req_handle->bound_uploads = (long long *) CALLOC (req_handle->num_bind, sizeof (long long));
+      }
+    if (error >= 0 && req_handle->unsent_uploads != NULL && req_handle->bound_uploads != NULL)
+      {
+	req_handle->unsent_uploads[index - 1] = token;
+	req_handle->bound_uploads[index - 1] = token;
+	qe_hold_shared_upload (con_handle, req_handle, token);
+      }
+    con_handle->used = false;
+    return error;
+  }
+}
+
+int
+cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int config_len, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  int error;
+
+  reset_error_buffer (err_buf);
+  if (stream_kind < 0 || config_len < 0 || (config_len > 0 && config == NULL))
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&con_handle->err_buf);
+  error = qe_stream_init (con_handle, stream_kind, config, config_len, &con_handle->err_buf);
+  while (IS_OUT_TRAN (con_handle) && IS_ER_TO_RECONNECT (error, con_handle->err_buf.err_code))
+    {
+      if (NEED_TO_RECONNECT (con_handle, error))
+	{
+	  /* Finally, reset_connect will return ER_TIMEOUT */
+	  error = reset_connect (con_handle, NULL, &(con_handle->err_buf));
+	  if (error != CCI_ER_NO_ERROR)
+	    {
+	      break;
+	    }
+	}
+      error = qe_stream_init (con_handle, stream_kind, config, config_len, &con_handle->err_buf);
+    }
+  if (error < 0)
+    {
+      set_error_buffer (&con_handle->err_buf, error, NULL);
+    }
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+  return error;
+}
+
+int
+cci_stream_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  int error = CCI_ER_NO_ERROR;
+
+  reset_error_buffer (err_buf);
+  if (data == NULL || data_len <= 0)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&con_handle->err_buf);
+  error = qe_stream_send_data (con_handle, data, data_len, &con_handle->err_buf);
+  if (error < 0)
+    {
+      set_error_buffer (&con_handle->err_buf, error, NULL);
+    }
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+  return error;
+}
+
+int
+cci_stream_end_result (int mapped_conn_id, long long *result, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  INT64 stream_result = 0;
+  int error;
+
+  reset_error_buffer (err_buf);
+  if (result == NULL)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&con_handle->err_buf);
+  error = qe_stream_end (con_handle, &stream_result, &con_handle->err_buf);
+  if (error == CCI_ER_NO_ERROR)
+    {
+      *result = (long long) stream_result;
+    }
+  if (error < 0)
+    {
+      set_error_buffer (&con_handle->err_buf, error, NULL);
+    }
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+  return error;
+}
+
+int
+cci_stream_end (int mapped_conn_id, T_CCI_ERROR * err_buf)
+{
+  long long result = 0;
+  int error = cci_stream_end_result (mapped_conn_id, &result, err_buf);
+  if (error < 0)
+    {
+      return error;
+    }
+  if (result > INT_MAX)
+    {
+      return INT_MAX;
+    }
+  return (int) result;
+}
+
+int
+cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  int error;
+
+  reset_error_buffer (err_buf);
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&con_handle->err_buf);
+  error = qe_stream_abort (con_handle, &con_handle->err_buf);
+  if (error < 0)
+    {
+      set_error_buffer (&con_handle->err_buf, error, NULL);
+    }
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+  return error;
+}
+
+/*
+ * cci_stream_read_open () - Open a server->client stream
+ *   first_max, flags: 0, 0 to open only; or the bytes buf takes from a first read in the same request, and
+ *                     CAS_STREAM_FLAG_RELEASE_AT_EOF to leave no handle when that read is the whole value
+ *   handle(out): for cci_stream_read () and cci_stream_release (); 0 when nothing was left open
+ *   reply_flags(out): CAS_STREAM_FLAG_EOF, CAS_STREAM_FLAG_RELEASED
+ */
+int
+cci_stream_read_open (int mapped_conn_id, int stream_kind, const char *config, int config_len, int first_max,
+		      char flags, long long *handle, char *buf, int *nread, char *reply_flags, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  int error = CCI_ER_NO_ERROR;
+
+  reset_error_buffer (err_buf);
+  if (config_len < 0 || (config_len > 0 && config == NULL) || first_max < 0 || (first_max > 0 && buf == NULL)
+      || handle == NULL || nread == NULL || reply_flags == NULL)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&(con_handle->err_buf));
+
+  error = qe_stream_read_open (con_handle, stream_kind, config, config_len, first_max, flags, handle, buf, nread,
+			       reply_flags, &(con_handle->err_buf));
+
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+
+  return error;
+}
+
+int
+cci_stream_read (int mapped_conn_id, long long handle, char *buf, int max, char flags, int *nread,
+		 char *reply_flags, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  int error = CCI_ER_NO_ERROR;
+
+  reset_error_buffer (err_buf);
+  if (buf == NULL || max <= 0 || nread == NULL || reply_flags == NULL)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&(con_handle->err_buf));
+
+  error = qe_stream_read (con_handle, handle, buf, max, flags, nread, reply_flags, &(con_handle->err_buf));
+
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+
+  return error;
+}
+
+int
+cci_stream_release (int mapped_conn_id, long long handle, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  int error = CCI_ER_NO_ERROR;
+
+  reset_error_buffer (err_buf);
+
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&(con_handle->err_buf));
+
+  error = qe_stream_release (con_handle, handle, &(con_handle->err_buf));
+
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+
+  return error;
+}
+
+/* STREAM_KIND_INTERNAL_LOB_READ, as the engine's internal_lob_stream_kind.h defines it.
+ * config: version (int), 0 (int), start offset (int64), locator (the rest, no NUL) */
+#define STREAM_KIND_INTERNAL_LOB_READ 4
+#define INTERNAL_LOB_READ_CONFIG_VERSION 1
+#define INTERNAL_LOB_READ_CONFIG_HEADER_SIZE (NET_SIZE_INT * 2 + NET_SIZE_INT64)
+/* the open brings this much (JDBC's CHUNK_SIZE), so a value no larger leaves no handle behind */
+#define INTERNAL_LOB_READ_FIRST_CHUNK (128 * 1024)
+
+/* the link that points at the reader of token, or at the end of the list */
+static T_INTERNAL_LOB_READER **
+internal_lob_reader_link (T_CON_HANDLE * con_handle, long long token)
+{
+  T_INTERNAL_LOB_READER **link = &con_handle->lob_readers;
+
+  while (*link != NULL && (*link)->token != token)
+    {
+      link = &(*link)->next;
+    }
+  return link;
+}
+
+/*
+ * cci_internal_lob_open () - Open a download of the value a locator names
+ *   token(out): for cci_internal_lob_read () and cci_internal_lob_close ()
+ *
+ * The open brings the first INTERNAL_LOB_READ_FIRST_CHUNK bytes; the server releases the handle at eof.
+ */
+int
+cci_internal_lob_open (int mapped_conn_id, const char *locator, int locator_len, long long start_offset,
+		       long long *token, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  T_INTERNAL_LOB_READER *reader = NULL;
+  char *config = NULL;
+  int config_len;
+  long long handle = 0;
+  char reply_flags = 0;
+  int error;
+
+  reset_error_buffer (err_buf);
+  if (locator == NULL || locator_len <= 0 || locator_len > INT_MAX - INTERNAL_LOB_READ_CONFIG_HEADER_SIZE
+      || start_offset < 0 || token == NULL)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+  *token = 0;
+
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&con_handle->err_buf);
+
+  config_len = INTERNAL_LOB_READ_CONFIG_HEADER_SIZE + locator_len;
+  config = (char *) MALLOC (config_len);
+  reader = (T_INTERNAL_LOB_READER *) MALLOC (sizeof (T_INTERNAL_LOB_READER));
+  if (reader != NULL)
+    {
+      memset (reader, 0, sizeof (T_INTERNAL_LOB_READER));
+      reader->chunk = (char *) MALLOC (INTERNAL_LOB_READ_FIRST_CHUNK);
+    }
+  if (config == NULL || reader == NULL || reader->chunk == NULL)
+    {
+      error = CCI_ER_NO_MORE_MEMORY;
+      goto end;
+    }
+
+  memset (config, 0, INTERNAL_LOB_READ_CONFIG_HEADER_SIZE);
+  config[NET_SIZE_INT - 1] = INTERNAL_LOB_READ_CONFIG_VERSION;
+  cci_stream_pack_int64 (config + NET_SIZE_INT * 2, (unsigned long long) start_offset);
+  memcpy (config + INTERNAL_LOB_READ_CONFIG_HEADER_SIZE, locator, locator_len);
+
+  error = qe_stream_read_open (con_handle, STREAM_KIND_INTERNAL_LOB_READ, config, config_len,
+			       INTERNAL_LOB_READ_FIRST_CHUNK, CAS_STREAM_FLAG_RELEASE_AT_EOF, &handle, reader->chunk,
+			       &reader->chunk_len, &reply_flags, &con_handle->err_buf);
+  while (IS_OUT_TRAN (con_handle) && IS_ER_TO_RECONNECT (error, con_handle->err_buf.err_code))
+    {
+      if (NEED_TO_RECONNECT (con_handle, error))
+	{
+	  /* Finally, reset_connect will return ER_TIMEOUT */
+	  error = reset_connect (con_handle, NULL, &(con_handle->err_buf));
+	  if (error != CCI_ER_NO_ERROR)
+	    {
+	      break;
+	    }
+	}
+      error = qe_stream_read_open (con_handle, STREAM_KIND_INTERNAL_LOB_READ, config, config_len,
+				   INTERNAL_LOB_READ_FIRST_CHUNK, CAS_STREAM_FLAG_RELEASE_AT_EOF, &handle,
+				   reader->chunk, &reader->chunk_len, &reply_flags, &con_handle->err_buf);
+    }
+  if (error < 0)
+    {
+      goto end;
+    }
+
+  reader->handle = (reply_flags & CAS_STREAM_FLAG_RELEASED) ? 0 : handle;
+  reader->eof = (reply_flags & CAS_STREAM_FLAG_EOF) != 0;
+  if (reader->chunk_len == 0)
+    {
+      FREE_MEM (reader->chunk);
+    }
+  reader->token = ++con_handle->last_lob_reader_token;
+  reader->next = con_handle->lob_readers;
+  con_handle->lob_readers = reader;
+  *token = reader->token;
+  reader = NULL;
+
+end:
+  if (reader != NULL)
+    {
+      FREE_MEM (reader->chunk);
+      FREE_MEM (reader);
+    }
+  FREE_MEM (config);
+  if (error < 0)
+    {
+      set_error_buffer (&con_handle->err_buf, error, NULL);
+    }
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+  return error;
+}
+
+/* nread is 0 at the end of the value; past the eof flag no request is sent */
+int
+cci_internal_lob_read (int mapped_conn_id, long long token, char *buf, int size, int *nread, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  T_INTERNAL_LOB_READER *reader;
+  char reply_flags = 0;
+  int error;
+
+  reset_error_buffer (err_buf);
+  if (token <= 0 || buf == NULL || size <= 0 || size > STREAM_READ_MAX_CHUNK || nread == NULL)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+  *nread = 0;
+
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&con_handle->err_buf);
+
+  reader = *internal_lob_reader_link (con_handle, token);
+  if (reader == NULL)
+    {
+      error = CCI_ER_INVALID_ARGS;
+    }
+  else if (reader->chunk_pos < reader->chunk_len)
+    {
+      /* the piece the open brought */
+      *nread = MIN (size, reader->chunk_len - reader->chunk_pos);
+      memcpy (buf, reader->chunk + reader->chunk_pos, *nread);
+      reader->chunk_pos += *nread;
+      if (reader->chunk_pos == reader->chunk_len)
+	{
+	  FREE_MEM (reader->chunk);
+	  reader->chunk_pos = reader->chunk_len = 0;
+	}
+    }
+  else if (!reader->eof && reader->handle != 0)
+    {
+      /* a failed read keeps the handle for cci_internal_lob_close () */
+      error = qe_stream_read (con_handle, reader->handle, buf, size, CAS_STREAM_FLAG_RELEASE_AT_EOF, nread,
+			      &reply_flags, &con_handle->err_buf);
+      if (reply_flags & CAS_STREAM_FLAG_RELEASED)
+	{
+	  reader->handle = 0;
+	}
+      if (reply_flags & CAS_STREAM_FLAG_EOF)
+	{
+	  reader->eof = true;
+	}
+    }
+
+  if (error < 0)
+    {
+      set_error_buffer (&con_handle->err_buf, error, NULL);
+    }
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+  return error;
+}
+
+/* releases the handle only while the server still has it; closing a closed reader is not an error */
+int
+cci_internal_lob_close (int mapped_conn_id, long long token, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  T_INTERNAL_LOB_READER **link;
+  T_INTERNAL_LOB_READER *reader;
+  int error;
+
+  reset_error_buffer (err_buf);
+  if (token <= 0)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&con_handle->err_buf);
+
+  link = internal_lob_reader_link (con_handle, token);
+  reader = *link;
+  if (reader != NULL)
+    {
+      *link = reader->next;
+      if (reader->handle != 0)
+	{
+	  error = qe_stream_release (con_handle, reader->handle, &con_handle->err_buf);
+	}
+      FREE_MEM (reader->chunk);
+      FREE_MEM (reader);
+    }
+
+  if (error < 0)
+    {
+      set_error_buffer (&con_handle->err_buf, error, NULL);
+    }
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
   return error;
 }

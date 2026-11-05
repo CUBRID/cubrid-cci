@@ -6,6 +6,7 @@ CMakeSettings.json
 .vs/
 CCI-VERSION-DIST
 *.c~
+*.h~
 
 # work directory of win/external/build_openssl.ps1
 win/external/openssl_build/

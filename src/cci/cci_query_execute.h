@@ -461,6 +461,7 @@ extern int qe_query_result_copy (T_REQ_HANDLE * req_handle, T_CCI_QUERY_RESULT *
 extern int qe_get_data_str (T_VALUE_BUF * conv_val_buf, T_CCI_U_TYPE u_type, char *col_value_p, int col_val_size,
 			    void *value, int *indicator, bool oracle_style_number_return);
 extern int qe_get_data_bigint (T_CCI_U_TYPE u_type, char *col_value_p, void *value);
+extern int qe_get_data_internal_lob (T_CCI_U_TYPE u_type, char *col_value_p, int col_val_size, void *value);
 extern int qe_get_data_ubigint (T_CCI_U_TYPE u_type, char *col_value_p, void *value);
 extern int qe_get_data_int (T_CCI_U_TYPE u_type, char *col_value_p, void *value);
 extern int qe_get_data_uint (T_CCI_U_TYPE u_type, char *col_value_p, void *value);
@@ -496,6 +497,22 @@ extern int qe_lob_write (T_CON_HANDLE * con_handle, T_LOB * lob, INT64 start_pos
 			 T_CCI_ERROR * err_buf);
 extern int qe_lob_read (T_CON_HANDLE * con_handle, T_LOB * lob, INT64 start_pos, int length, char *buf,
 			T_CCI_ERROR * err_buf);
+
+extern int qe_stream_init (T_CON_HANDLE * con_handle, int stream_kind, const char *config, int config_len,
+			   T_CCI_ERROR * err_buf);
+extern int qe_stream_send_data (T_CON_HANDLE * con_handle, const char *data, int data_len, T_CCI_ERROR * err_buf);
+extern int qe_stream_end (T_CON_HANDLE * con_handle, INT64 * result, T_CCI_ERROR * err_buf);
+extern int qe_stream_abort (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf);
+extern int qe_stream_read_open (T_CON_HANDLE * con_handle, int stream_kind, const char *config, int config_len,
+				int first_max, char flags, long long *handle, char *buf, int *nread, char *reply_flags,
+				T_CCI_ERROR * err_buf);
+extern int qe_stream_read (T_CON_HANDLE * con_handle, long long handle, char *buf, int max, char flags, int *nread,
+			   char *reply_flags, T_CCI_ERROR * err_buf);
+extern int qe_stream_release (T_CON_HANDLE * con_handle, long long handle, T_CCI_ERROR * err_buf);
+extern int qe_stream_upload_release (T_CON_HANDLE * con_handle, long long token, T_CCI_ERROR * err_buf);
+extern void qe_discard_unsent_uploads (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int index);
+extern void qe_discard_all_unsent_uploads (T_CON_HANDLE * con_handle, bool keep_holdable);
+extern void qe_hold_shared_upload (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, long long token);
 
 extern int qe_get_shard_info (T_CON_HANDLE * con_handle, T_CCI_SHARD_INFO ** shard_info, T_CCI_ERROR * err_buf);
 extern int qe_shard_info_free (T_CCI_SHARD_INFO * shard_info);

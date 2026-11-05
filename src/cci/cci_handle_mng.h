@@ -157,6 +157,8 @@ typedef struct
   T_CCI_CUBRID_STMT first_stmt_type;
   int num_bind;
   T_BIND_VALUE *bind_value;
+  long long *unsent_uploads;	/* per bind, an upload token bound by cci_bind_internal_lob_upload no execute sent */
+  long long *bound_uploads;	/* per bind, the upload token bound there, executed or not */
   char *bind_mode;
   T_CCI_COL_INFO *col_info;
   int bind_array_size;
@@ -204,6 +206,19 @@ typedef struct
   SSL_CTX *ctx;
   bool is_connected;
 } T_SSL_HANDLE;
+
+/* one cci_internal_lob_open (): its download handle and the first piece the open brought */
+typedef struct t_internal_lob_reader T_INTERNAL_LOB_READER;
+struct t_internal_lob_reader
+{
+  long long token;
+  long long handle;		/* 0 once the server released it */
+  bool eof;
+  char *chunk;
+  int chunk_pos;
+  int chunk_len;
+  T_INTERNAL_LOB_READER *next;
+};
 
 typedef struct
 {
@@ -281,6 +296,10 @@ typedef struct
 
   /* ssl */
   T_SSL_HANDLE ssl_handle;
+
+  /* cci_internal_lob_open () readers not closed yet */
+  T_INTERNAL_LOB_READER *lob_readers;
+  long long last_lob_reader_token;
 
 } T_CON_HANDLE;
 

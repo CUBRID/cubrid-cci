@@ -948,6 +948,8 @@ req_handle_content_free (T_REQ_HANDLE * req_handle, int reuse)
       qe_bind_value_free (req_handle);
       FREE_MEM (req_handle->bind_mode);
       FREE_MEM (req_handle->bind_value);
+      FREE_MEM (req_handle->unsent_uploads);
+      FREE_MEM (req_handle->bound_uploads);
     }
   req_handle->valid = 0;
 }
@@ -1400,6 +1402,15 @@ con_handle_content_free (T_CON_HANDLE * con_handle)
   FREE_MEM (con_handle->req_handle_table);
   FREE_MEM (con_handle->deferred_close_handle_list);
   FREE_MEM (con_handle->last_insert_id);
+
+  while (con_handle->lob_readers != NULL)
+    {
+      T_INTERNAL_LOB_READER *reader = con_handle->lob_readers;
+
+      con_handle->lob_readers = reader->next;
+      FREE_MEM (reader->chunk);
+      FREE_MEM (reader);
+    }
 
   if (con_handle->stmt_pool != NULL)
     {

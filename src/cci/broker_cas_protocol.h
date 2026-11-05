@@ -101,6 +101,13 @@ extern "C"
 #define CAS_INFO_FLAG_MASK_FORCE_OUT_TRAN       0x02
 #define CAS_INFO_FLAG_MASK_NEW_SESSION_ID       0x04
 
+/* The optional trailing flags byte of the bundled stream requests and replies (the engine's cas_protocol.h). */
+#define CAS_STREAM_FLAG_FINAL			0x01	/* INIT, SEND_DATA: end the stream with this chunk */
+#define CAS_STREAM_FLAG_RELEASE_AT_EOF		0x01	/* READ_OPEN, READ: release the handle at eof */
+#define CAS_STREAM_FLAG_AUTO_COMMIT		0x02	/* READ_OPEN, READ: what RELEASE's auto-commit byte says */
+#define CAS_STREAM_FLAG_EOF			0x01	/* READ_OPEN, READ reply */
+#define CAS_STREAM_FLAG_RELEASED		0x02	/* READ_OPEN, READ reply: the handle is gone */
+
 #define CAS_INFO_SIZE			(4)
 #define CAS_INFO_RESERVED_DEFAULT	(-1)
 
@@ -134,7 +141,7 @@ extern "C"
 #define CAS_STATEMENT_POOLING_ON		1
 
 /* BITMASK for System Parameter */
-#define MASK_ORACLE_COMPAT_NUMBER_BEHAVIOR      0x01    // oracle_compat_number_behavior
+#define MASK_ORACLE_COMPAT_NUMBER_BEHAVIOR      0x01	// oracle_compat_number_behavior
 
 #define SHARD_ID_INVALID 		(-1)
 #define SHARD_ID_UNSUPPORTED	(-2)
@@ -188,6 +195,17 @@ extern "C"
     CAS_FC_CURSOR_CLOSE = 42,
     CAS_FC_GET_SHARD_INFO = 43,
     CAS_FC_CAS_CHANGE_MODE = 44,
+    CAS_FC_STREAM_SEND_DATA = 45,
+    CAS_FC_STREAM_END = 46,
+    CAS_FC_STREAM_INIT = 47,
+    CAS_FC_STREAM_ABORT = 48,
+    CAS_FC_STREAM_READ_OPEN = 49,
+    CAS_FC_STREAM_READ = 50,
+    CAS_FC_STREAM_RELEASE = 51,
+    /* Drop uploads the driver discarded before an execute bound them; one an open statement binds stays. */
+    CAS_FC_STREAM_UPLOAD_RELEASE = 52,
+    /* The statement handle holds these uploads before it executes, so closing another statement keeps them. */
+    CAS_FC_STREAM_UPLOAD_HOLD = 53,
 
     /* Whenever you want to introduce a new function code, you must add a corresponding function entry to
      * server_fn_table of both CUBRID and (MySQL, Oracle). */
@@ -198,6 +216,21 @@ extern "C"
     CAS_FC_PREPARE_AND_EXECUTE_FOR_PROTO_V2 = 42
   };
   typedef enum t_cas_func_code T_CAS_FUNC_CODE;
+
+/* Compatibility aliases: COPY was the first consumer of the stream transport.
+ * The function-code values are unchanged (wire-compatible). */
+#define CAS_FC_COPY_SEND_DATA CAS_FC_STREAM_SEND_DATA
+#define CAS_FC_COPY_END       CAS_FC_STREAM_END
+
+/* The core bounds one download read by this, whatever was asked. */
+#define STREAM_READ_MAX_CHUNK (1024 * 1024)
+
+/* Leading byte of every BLOB/CLOB column sent to a PROTOCOL_V13 driver.  It says whether the payload is a
+ * reference to stored content (read with CAS_FC_STREAM_READ_*) or the content itself; the column type alone
+ * cannot distinguish them, because a scalar function result (CHAR_TO_CLOB('x')) is a LOB value with no storage
+ * behind it. */
+#define INTERNAL_LOB_WIRE_INLINE ((char) 0)
+#define INTERNAL_LOB_WIRE_REF    ((char) 1)
 
   enum t_cas_protocol
   {
@@ -214,7 +247,10 @@ extern "C"
     PROTOCOL_V10 = 10,		/* Secure Broker/CAS using SSL */
     PROTOCOL_V11 = 11,		/* make out resultset */
     PROTOCOL_V12 = 12,		/* Remove trailing zeros from double and float types */
-    CURRENT_PROTOCOL = PROTOCOL_V12
+    PROTOCOL_V13 = 13,		/* byte-stream transport (CAS_FC_STREAM_*, 45-53) and a BLOB/CLOB column led by
+				 * INTERNAL_LOB_WIRE_REF / _INLINE; on develop V13 also makes the CAS-issued
+				 * session id required for QC/X1 query cancel */
+    CURRENT_PROTOCOL = PROTOCOL_V13
   };
   typedef enum t_cas_protocol T_CAS_PROTOCOL;
 
