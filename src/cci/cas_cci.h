@@ -246,6 +246,10 @@
 #define CCI_DS_PROPERTY_DEFAULT_LOCK_TIMEOUT		"default_lock_timeout"
 /* flag for security(SSL/TLS)  */
 #define CCI_DS_PROPERTY_USESSL    "useSSL"
+/* TLS mode: disabled, required, verify-ca or verify-full; decides over useSSL when both are given */
+#define CCI_DS_PROPERTY_SSLMODE   "sslmode"
+/* PEM file of the certificates to verify the broker against; required for verify-ca and verify-full */
+#define CCI_DS_PROPERTY_SSLCA     "sslca"
 
 #define CCI_TZ_SIZE 63
 
@@ -505,6 +509,8 @@ typedef enum
   CCI_ER_INVALID_SHARD = -20046,
 
   CCI_ER_SSL_HANDSHAKE = -21047,
+  /* in the CCI range unlike CCI_ER_SSL_HANDSHAKE above, whose -21047 is kept as is for compatibility */
+  CCI_ER_SSL_CERT_VERIFY = -20047,
 
   CCI_ER_NOT_IMPLEMENTED = -20099,
   CCI_ER_END = -20100
@@ -764,7 +770,9 @@ typedef enum
   CCI_DS_KEY_DEFAULT_ISOLATION,
   CCI_DS_KEY_DEFAULT_LOCK_TIMEOUT,
   CCI_DS_KEY_MAX_POOL_SIZE,
-  CCI_DS_KEY_USESSL
+  CCI_DS_KEY_USESSL,
+  CCI_DS_KEY_SSLMODE,
+  CCI_DS_KEY_SSLCA
 } T_CCI_DATASOURCE_KEY;
 
 typedef DB_TRAN_ISOLATION T_CCI_TRAN_ISOLATION;	// alias

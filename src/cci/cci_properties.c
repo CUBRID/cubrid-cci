@@ -42,6 +42,7 @@
 #include "config.h"
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #if defined(WINDOWS)
 #include <direct.h>
 #else
@@ -54,6 +55,7 @@
 #include "porting.h"
 #include "cci_handle_mng.h"
 #include "cci_log.h"
+#include <openssl/err.h>
 
 /*
  * PRIVATE DEFINITIONS
@@ -81,6 +83,9 @@ static int cci_url_set_properties (T_URL_PROPERTY props[], int len, char *name, 
 static int cci_url_set_value (T_URL_PROPERTY * property, char *value);
 static int cci_url_get_int (char *str, int *value);
 static int cci_url_get_bool (char *str, bool * value);
+static int cci_url_resolve_sslmode (const char *sslmode, bool use_ssl);
+static void cci_url_set_invalid (T_CON_HANDLE * handle, const char *format, ...);
+static bool cci_url_check_sslca (T_CON_HANDLE * handle);
 static void cci_shuffle_althosts (T_CON_HANDLE * handle);
 
 /*
@@ -145,6 +150,65 @@ cci_url_get_int (char *str, int *value)
   return CCI_ER_NO_ERROR;
 }
 
+/*
+ * cci_url_resolve_sslmode - the mode a URL asks for: sslmode when given, otherwise derived from useSSL
+ *   return: T_CCI_SSLMODE, or -1 when sslmode names no mode
+ */
+static int
+cci_url_resolve_sslmode (const char *sslmode, bool use_ssl)
+{
+  if (sslmode == NULL)
+    {
+      return use_ssl ? CCI_SSLMODE_REQUIRED : CCI_SSLMODE_DISABLED;
+    }
+
+  return cci_sslmode_from_label (sslmode);
+}
+
+/*
+ * cci_url_set_invalid - why the URL was refused, left in the handle for cci_connect_with_url_internal() to pass on
+ */
+static void
+cci_url_set_invalid (T_CON_HANDLE * handle, const char *format, ...)
+{
+  va_list args;
+
+  handle->err_buf.err_code = CCI_ER_INVALID_URL;
+  va_start (args, format);
+  vsnprintf (handle->err_buf.err_msg, sizeof (handle->err_buf.err_msg), format, args);
+  va_end (args);
+}
+
+/*
+ * cci_url_check_sslca - whether the sslca file can be read and holds a certificate
+ *
+ * Read when the URL is parsed, before the broker is reached, as JDBC does: finding it only at the TLS handshake
+ * left the CAS waiting for a handshake that never started. X509_STORE_load_locations () rather than
+ * X509_STORE_load_file (), which OpenSSL 1.1.1 does not have.
+ */
+static bool
+cci_url_check_sslca (T_CON_HANDLE * handle)
+{
+  X509_STORE *store;
+  bool readable;
+
+  /* cci_ssl_error_reason () reads the first error queued, so nothing an earlier failure in this thread left, such as
+   * a rejected certificate, may come before the one this load queues */
+  ERR_clear_error ();
+
+  store = X509_STORE_new ();
+  readable = (store != NULL && X509_STORE_load_locations (store, handle->ssl_ca_file, NULL) == 1);
+
+  if (!readable)
+    {
+      cci_url_set_invalid (handle, "Cannot read sslca file %s (%s)", handle->ssl_ca_file, cci_ssl_error_reason ());
+    }
+
+  ERR_clear_error ();
+  X509_STORE_free (store);
+  return readable;
+}
+
 static int
 cci_url_set_value (T_URL_PROPERTY * property, char *value)
 {
@@ -174,6 +238,8 @@ cci_url_set_value (T_URL_PROPERTY * property, char *value)
       }
     case STRING_PROPERTY:
       {
+	/* a property given twice keeps the last value; a datasource adds its sslmode and sslca after the URL's own */
+	FREE_MEM (*((char **) property->data));
 	*((char **) property->data) = strdup (value);
 	if (*((char **) property->data) == NULL)
 	  {
@@ -249,6 +315,13 @@ cci_url_set_althosts (T_CON_HANDLE * handle, char *data)
 
   memcpy (handle->alter_hosts[0].ip_addr, handle->ip_addr, 4);
   handle->alter_hosts[0].port = handle->port;
+  /* freed first: a pooled handle parses its properties again on reuse */
+  FREE_MEM (hosts[0].hostname);
+  ALLOC_COPY (hosts[0].hostname, handle->hostname);
+  if (hosts[0].hostname == NULL)
+    {
+      return CCI_ER_NO_MORE_MEMORY;
+    }
 
   for (i = 1;; i++, data = NULL)
     {
@@ -275,6 +348,12 @@ cci_url_set_althosts (T_CON_HANDLE * handle, char *data)
       if (error < 0)
 	{
 	  return error;
+	}
+      FREE_MEM (hosts[i].hostname);
+      ALLOC_COPY (hosts[i].hostname, host);
+      if (hosts[i].hostname == NULL)
+	{
+	  return CCI_ER_NO_MORE_MEMORY;
 	}
 
       port = strtok_r (NULL, ":", &save_alter);
@@ -333,7 +412,9 @@ int
 cci_conn_set_properties (T_CON_HANDLE * handle, char *properties)
 {
   char *base = NULL, *file = NULL, *althosts = NULL;
+  char *sslmode = NULL, *sslca = NULL;
   char path[PATH_MAX];
+  int mode;
 
   T_URL_PROPERTY props[] = {
     {"altHosts", STRING_PROPERTY, &althosts},
@@ -357,6 +438,8 @@ cci_conn_set_properties (T_CON_HANDLE * handle, char *properties)
     {"disconnect_on_query_timeout", BOOL_PROPERTY,
      &handle->disconnect_on_query_timeout},
     {"useSSL", BOOL_PROPERTY, &handle->useSSL},
+    {"sslmode", STRING_PROPERTY, &sslmode},
+    {"sslca", STRING_PROPERTY, &sslca},
     {"__gateway", BOOL_PROPERTY, &handle->__gateway},
   };
   int error = CCI_ER_NO_ERROR;
@@ -377,6 +460,45 @@ cci_conn_set_properties (T_CON_HANDLE * handle, char *properties)
   if (handle->rc_time < MONITORING_INTERVAL)
     {
       handle->rc_time = MONITORING_INTERVAL;
+    }
+
+  /* sslmode decides when given, and useSSL is filled to match (1 is USESSL) so that the == USESSL checks in
+   * cci_network.c keep working unchanged */
+  mode = cci_url_resolve_sslmode (sslmode, handle->useSSL);
+  if (mode < 0)
+    {
+      cci_url_set_invalid (handle, "Invalid sslmode value '%s'", sslmode);
+      error = CCI_ER_INVALID_URL;
+      goto set_properties_end;
+    }
+  handle->sslmode = (T_CCI_SSLMODE) mode;
+  handle->useSSL = (handle->sslmode != CCI_SSLMODE_DISABLED);
+
+  FREE_MEM (handle->ssl_ca_file);
+  handle->ssl_ca_file = sslca;
+  sslca = NULL;
+
+  /* No fallback to a system CA store: the bundled OpenSSL cannot find one, and any public CA could then vouch for
+   * the broker. JDBC has the same rule. */
+  if (handle->sslmode >= CCI_SSLMODE_VERIFY_CA && handle->ssl_ca_file == NULL)
+    {
+      cci_url_set_invalid (handle, "sslca is required for sslmode=%s", cci_sslmode_label (handle->sslmode));
+      error = CCI_ER_INVALID_URL;
+      goto set_properties_end;
+    }
+
+  /* "cci:cubrid::port:..." reaches the local host but names nothing a certificate could be checked against */
+  if (handle->sslmode == CCI_SSLMODE_VERIFY_FULL && (handle->hostname == NULL || handle->hostname[0] == '\0'))
+    {
+      cci_url_set_invalid (handle, "sslmode=verify-full needs a host name in the URL");
+      error = CCI_ER_INVALID_URL;
+      goto set_properties_end;
+    }
+
+  if (handle->sslmode >= CCI_SSLMODE_VERIFY_CA && !cci_url_check_sslca (handle))
+    {
+      error = CCI_ER_INVALID_URL;
+      goto set_properties_end;
     }
 
   if (althosts != NULL)
@@ -439,32 +561,133 @@ set_properties_end:
   FREE_MEM (althosts);
   FREE_MEM (base);
   FREE_MEM (file);
+  FREE_MEM (sslmode);
+  FREE_MEM (sslca);
 
   API_SLOG (handle);
   API_ELOG (handle, error);
   return error;
 }
 
-bool
-has_ssl_property (char *prop)
+/*
+ * cci_url_peek_sslmode - the TLS mode and sslca the URL properties ask for; read before the handle exists, to pick
+ *			  a pooled one that was opened the same way
+ *   return: T_CCI_SSLMODE, or -1 when sslmode names no mode or the properties cannot be read in full; -1 matches no
+ *	     pooled connection
+ *   prop(in): URL properties
+ *   sslca(out): the sslca value, or "" when not given
+ *   sslca_size(in): size of sslca
+ *
+ * Unlike cci_conn_set_properties(), names other than useSSL, sslmode and sslca are skipped rather than refused:
+ * refusing them stopped the scan, so "?loginTimeout=1000&useSSL=true" read as plaintext and could be given a pooled
+ * plaintext connection. Invalid values are left for cci_conn_set_properties() to refuse.
+ *
+ * The whole string is read, as cci_conn_set_properties() reads it: a copy cut short could miss a later sslmode and
+ * pick a pooled connection opened with less verification, whose live socket is then used as it is.
+ */
+int
+cci_url_peek_sslmode (char *prop, char *sslca, int sslca_size)
 {
-  char useSSL = false;
-  char buf[4096] = { 0, };
-  T_URL_PROPERTY props[] = {
-    {"useSSL", BOOL_PROPERTY, &useSSL},
-  };
+  char *buf;
+  char *token, *save_url = NULL;
+  char *sslmode = NULL;
+  bool use_ssl = false;
+  bool cut = false;
+  int mode;
 
+  sslca[0] = '\0';
   if (prop == NULL)
     {
-      return false;
+      return CCI_SSLMODE_DISABLED;
     }
 
-  snprintf (buf, sizeof (buf), "%s", prop);
-
-  if (cci_url_parse_properties (props, DIM (props), buf) != CCI_ER_NO_ERROR)
+  buf = strdup (prop);
+  if (buf == NULL)
     {
-      return false;
+      return -1;
     }
 
-  return useSSL;
+  for (token = strtok_r (buf, "?&", &save_url); token != NULL; token = strtok_r (NULL, "&", &save_url))
+    {
+      char *name, *value, *save_property = NULL;
+
+      name = strtok_r (token, "=", &save_property);
+      value = strtok_r (NULL, "=", &save_property);
+      if (name == NULL || value == NULL)
+	{
+	  continue;
+	}
+
+      if (strcasecmp (name, "useSSL") == 0)
+	{
+	  cci_url_get_bool (value, &use_ssl);
+	}
+      else if (strcasecmp (name, "sslmode") == 0)
+	{
+	  sslmode = value;
+	}
+      else if (strcasecmp (name, "sslca") == 0)
+	{
+	  cut = (snprintf (sslca, sslca_size, "%s", value) >= sslca_size);
+	}
+    }
+
+  /* the same rule as cci_conn_set_properties() */
+  mode = cut ? -1 : cci_url_resolve_sslmode (sslmode, use_ssl);
+  FREE_MEM (buf);
+  return mode;
+}
+
+/* indexed by T_CCI_SSLMODE */
+static const char *cci_sslmode_labels[] = {
+  "disabled", "required", "verify-ca", "verify-full"
+};
+
+/*
+ * cci_sslmode_from_label - the T_CCI_SSLMODE written as sslmode=<label>, compared case-insensitively
+ *   return: the mode, or -1 when the label names none
+ */
+int
+cci_sslmode_from_label (const char *label)
+{
+  int i;
+
+  if (label == NULL)
+    {
+      return -1;
+    }
+
+  for (i = 0; i < (int) DIM (cci_sslmode_labels); i++)
+    {
+      if (strcasecmp (label, cci_sslmode_labels[i]) == 0)
+	{
+	  return i;
+	}
+    }
+
+  return -1;
+}
+
+const char *
+cci_sslmode_label (int sslmode)
+{
+  if (sslmode < 0 || sslmode >= (int) DIM (cci_sslmode_labels))
+    {
+      return "unknown";
+    }
+
+  return cci_sslmode_labels[sslmode];
+}
+
+/*
+ * cci_ssl_error_reason - why the last OpenSSL call failed, from the first error it queued: errno for a file that
+ *			  cannot be opened, else what OpenSSL found wrong
+ */
+const char *
+cci_ssl_error_reason (void)
+{
+  unsigned long e = ERR_peek_error ();
+  const char *reason = (ERR_GET_LIB (e) == ERR_LIB_SYS) ? strerror (ERR_GET_REASON (e)) : ERR_reason_error_string (e);
+
+  return (reason != NULL) ? reason : "unknown reason";
 }

@@ -103,8 +103,8 @@ static unsigned int num_conn_pool = 0;
  * PRIVATE FUNCTION PROTOTYPES						*
  ************************************************************************/
 
-static int compare_conn_info (unsigned char *ip_addr, int port, char *dbname, char *dbuser, char *dbpasswd, bool useSSL,
-			      T_CON_HANDLE * con_handle);
+static int compare_conn_info (unsigned char *ip_addr, const char *hostname, int port, char *dbname, char *dbuser,
+			      char *dbpasswd, int sslmode, const char *sslca, T_CON_HANDLE * con_handle);
 static int init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_name, char *db_user,
 			    char *db_passwd, bool useSSL);
 static int new_con_handle_id (void);
@@ -136,12 +136,28 @@ static int con_handle_current_index;
  * IMPLEMENTATION OF PUBLIC FUNCTIONS	 				*
  ************************************************************************/
 static int
-compare_conn_info (unsigned char *ip_addr, int port, char *dbname, char *dbuser, char *dbpasswd, bool useSSL,
-		   T_CON_HANDLE * con_handle)
+compare_conn_info (unsigned char *ip_addr, const char *hostname, int port, char *dbname, char *dbuser, char *dbpasswd,
+		   int sslmode, const char *sslca, T_CON_HANDLE * con_handle)
 {
-  if (con_handle->useSSL != useSSL || port != con_handle->port || memcmp (ip_addr, con_handle->ip_addr, 4) != 0
+  /* sslmode also decides useSSL, so comparing it covers what the useSSL comparison did */
+  if (con_handle->sslmode != sslmode || port != con_handle->port || memcmp (ip_addr, con_handle->ip_addr, 4) != 0
       || strcmp (dbname, con_handle->db_name) != 0 || strcmp (dbuser, con_handle->db_user) != 0
       || strcmp (dbpasswd, con_handle->db_passwd) != 0)
+    {
+      return 0;
+    }
+
+  /* A pooled connection keeps the TLS session it was opened with, so it is reused only for a request that would
+   * have verified the broker the same way: against the same anchors, and for verify-full, for the same name. A
+   * handle that failed over is connected to an alternate host, checked against that host's name, which the new URL
+   * need not list, so for verify-full only a handle on its main host is reused. */
+  if (sslmode >= CCI_SSLMODE_VERIFY_CA
+      && (sslca == NULL || con_handle->ssl_ca_file == NULL || strcmp (sslca, con_handle->ssl_ca_file) != 0))
+    {
+      return 0;
+    }
+  if (sslmode == CCI_SSLMODE_VERIFY_FULL
+      && (strcasecmp (hostname, con_handle->hostname) != 0 || con_handle->alter_host_id > 0))
     {
       return 0;
     }
@@ -150,14 +166,16 @@ compare_conn_info (unsigned char *ip_addr, int port, char *dbname, char *dbuser,
 }
 
 T_CON_HANDLE *
-hm_get_con_from_pool (unsigned char *ip_addr, int port, char *dbname, char *dbuser, char *dbpasswd, bool useSSL)
+hm_get_con_from_pool (unsigned char *ip_addr, const char *hostname, int port, char *dbname, char *dbuser,
+		      char *dbpasswd, int sslmode, const char *sslca)
 {
   int con = -1;
   unsigned int i;
 
   for (i = 0; i < num_conn_pool; i++)
     {
-      if (compare_conn_info (ip_addr, port, dbname, dbuser, dbpasswd, useSSL, con_handle_table[conn_pool[i] - 1]))
+      if (compare_conn_info (ip_addr, hostname, port, dbname, dbuser, dbpasswd, sslmode, sslca,
+			     con_handle_table[conn_pool[i] - 1]))
 	{
 	  con = conn_pool[i];
 	  conn_pool[i] = conn_pool[--num_conn_pool];
@@ -1254,6 +1272,12 @@ init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_nam
 
   memcpy (con_handle->ip_addr, ip_addr, 4);
   con_handle->port = port;
+  /* checked unlike the others: a missing name would later turn off the host name check without a word */
+  ALLOC_COPY (con_handle->hostname, ip_str);
+  if (con_handle->hostname == NULL)
+    {
+      return CCI_ER_NO_MORE_MEMORY;
+    }
   ALLOC_COPY (con_handle->db_name, db_name);
   ALLOC_COPY (con_handle->db_user, db_user);
   ALLOC_COPY (con_handle->db_passwd, db_passwd);
@@ -1272,6 +1296,7 @@ init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_nam
   con_handle->req_handle_table = (T_REQ_HANDLE **) MALLOC (sizeof (T_REQ_HANDLE *) * con_handle->max_req_handle);
   if (con_handle->req_handle_table == NULL)
     {
+      FREE_MEM (con_handle->hostname);
       FREE_MEM (con_handle->db_name);
       FREE_MEM (con_handle->db_user);
       FREE_MEM (con_handle->db_passwd);
@@ -1282,6 +1307,7 @@ init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_nam
   con_handle->stmt_pool = cci_mht_create (0, 1000, cci_mht_5strhash, cci_mht_strcasecmpeq);
   if (con_handle->stmt_pool == NULL)
     {
+      FREE_MEM (con_handle->hostname);
       FREE_MEM (con_handle->db_name);
       FREE_MEM (con_handle->db_user);
       FREE_MEM (con_handle->db_passwd);
@@ -1323,6 +1349,8 @@ init_con_handle (T_CON_HANDLE * con_handle, char *ip_str, int port, char *db_nam
   con_handle->ssl_handle.ssl = NULL;
   con_handle->ssl_handle.ctx = NULL;
   con_handle->useSSL = useSSL;
+  con_handle->sslmode = useSSL ? CCI_SSLMODE_REQUIRED : CCI_SSLMODE_DISABLED;
+  con_handle->ssl_ca_file = NULL;
   con_handle->__gateway = false;
   con_handle->deferred_max_close_handle_count = DEFERRED_CLOSE_HANDLE_ALLOC_SIZE;
   con_handle->deferred_close_handle_list = (int *) MALLOC (sizeof (int) * con_handle->deferred_max_close_handle_count);
@@ -1393,6 +1421,14 @@ new_req_handle_id (T_CON_HANDLE * con_handle)
 static void
 con_handle_content_free (T_CON_HANDLE * con_handle)
 {
+  int i;
+
+  FREE_MEM (con_handle->hostname);
+  for (i = 0; i < ALTER_HOST_MAX_SIZE; i++)
+    {
+      FREE_MEM (con_handle->alter_hosts[i].hostname);
+    }
+  FREE_MEM (con_handle->ssl_ca_file);
   FREE_MEM (con_handle->db_name);
   FREE_MEM (con_handle->db_user);
   FREE_MEM (con_handle->db_passwd);
