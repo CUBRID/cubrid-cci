@@ -1,0 +1,19 @@
+/*
+ * cascci.map - linker version script for libcascci
+ *
+ * The CUBRID engine links libcascci for dblink, so libcascci exports only the cci_* API, as
+ * win/cascci/cascci.def does on Windows. Everything else stays local: the statically linked
+ * libstdc++ and OpenSSL, the utility functions, and the vtables and other data of template
+ * instances, which -Bsymbolic-functions would leave to the engine's copies.
+ *
+ * The extern "C++" block keeps the cci_* functions that are compiled with C++ linkage.
+ */
+{
+  global:
+    cci_*;
+    extern "C++" {
+      cci_*;
+    };
+  local:
+    *;
+};
