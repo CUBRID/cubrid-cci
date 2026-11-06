@@ -986,6 +986,30 @@ extern "C"
   extern int cci_is_shard (int con_h_id, T_CCI_ERROR * err_buf);
   extern int cci_get_cas_info (int mapped_conn_id, char *info_buf, int buf_length, T_CCI_ERROR * err_buf);
 
+  /* flags of the bundled stream calls, and of what cci_stream_read_open () / cci_stream_read () report */
+#define CCI_STREAM_FINAL		0x01	/* cci_stream_init (): data is the whole value */
+#define CCI_STREAM_RELEASE_AT_EOF	0x01	/* cci_stream_read_open (), cci_stream_read () */
+#define CCI_STREAM_EOF			0x01	/* reply */
+#define CCI_STREAM_RELEASED		0x02	/* reply: the handle is gone */
+
+  extern int cci_stream_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf);
+  extern int cci_stream_end (int mapped_conn_id, T_CCI_ERROR * err_buf);
+  extern int cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int config_len, char flags,
+			      const char *data, int data_len, long long *count, T_CCI_ERROR * err_buf);
+  extern int cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf);
+  extern int cci_stream_send_final (int mapped_conn_id, const char *data, int data_len, long long *count,
+				    T_CCI_ERROR * err_buf);
+  extern int cci_stream_read_open (int mapped_conn_id, int stream_kind, const char *config, int config_len,
+				   int first_max, char flags, long long *handle, char *buf, int *nread,
+				   char *reply_flags, T_CCI_ERROR * err_buf);
+  extern int cci_stream_read (int mapped_conn_id, long long handle, char *buf, int max, char flags, int *nread,
+			      char *reply_flags, T_CCI_ERROR * err_buf);
+  extern int cci_stream_release (int mapped_conn_id, long long handle, T_CCI_ERROR * err_buf);
+
+  /* Back-compat aliases: COPY was the first consumer of the stream transport. */
+  extern int cci_copy_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf);
+  extern int cci_copy_end (int mapped_conn_id, T_CCI_ERROR * err_buf);
+
 #ifdef __cplusplus
 }
 #endif
