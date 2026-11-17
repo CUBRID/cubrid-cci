@@ -6885,6 +6885,14 @@ bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void *value, in
       net_buf->err_code = CCI_ER_NOT_SUPPORTED_PROTOCOL;
       return CCI_ER_NOT_SUPPORTED_PROTOCOL;
     }
+  if ((u_type == CCI_U_TYPE_BLOB || u_type == CCI_U_TYPE_CLOB || u_type == CCI_U_TYPE_BFILE
+       || u_type == CCI_U_TYPE_CFILE) && value != NULL && hm_broker_support_internal_lob (con_handle)
+      && (((T_LOB *) value)->type == CCI_U_TYPE_BLOB || ((T_LOB *) value)->type == CCI_U_TYPE_CLOB))
+    {
+      /* an external-file LOB made through an older broker: its handle carries that server's DB type */
+      net_buf->err_code = CCI_ER_INVALID_LOB_HANDLE;
+      return CCI_ER_INVALID_LOB_HANDLE;
+    }
 
   ADD_ARG_BYTES (net_buf, &u_type, 1);
 
