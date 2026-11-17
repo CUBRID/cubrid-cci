@@ -513,6 +513,9 @@ extern int qe_stream_upload_release (T_CON_HANDLE * con_handle, long long token,
 extern void qe_discard_unsent_uploads (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int index);
 extern void qe_discard_all_unsent_uploads (T_CON_HANDLE * con_handle, bool keep_holdable);
 extern void qe_hold_shared_upload (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, long long token);
+extern int qe_bind_internal_lob_upload (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int index,
+					T_CCI_U_TYPE lob_type, long long token, long long data_length,
+					long long logical_length);
 
 extern int qe_get_shard_info (T_CON_HANDLE * con_handle, T_CCI_SHARD_INFO ** shard_info, T_CCI_ERROR * err_buf);
 extern int qe_shard_info_free (T_CCI_SHARD_INFO * shard_info);

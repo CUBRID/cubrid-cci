@@ -383,7 +383,9 @@ typedef enum
   CCI_U_TYPE_TIMETZ = 33,	/* internal use only - RESERVED */
   /* end of disabled types */
   CCI_U_TYPE_JSON = 34,
-  /* 0..34 are the numbers every broker uses; the ones below come only from a PROTOCOL_V13 broker with internal LOB */
+  /* 0..34 are the numbers every broker uses; the ones below come only from a PROTOCOL_V13 broker with internal LOB.
+   * An older broker's BLOB/CLOB column (sent as 23/24) is reported as CCI_U_TYPE_BLOB/CLOB too: like every type from
+   * 32, as a column type it is encoded (CCI_GET_COLLECTION_DOMAIN of CCI_GET_RESULT_INFO_TYPE gives the number). */
   CCI_U_TYPE_BLOB = 35,
   CCI_U_TYPE_CLOB = 36,
   CCI_U_TYPE_INTERNAL_BLOB_UPLOAD = 37,
@@ -406,14 +408,16 @@ typedef enum
   CCI_A_TYPE_DATE,
   CCI_A_TYPE_SET,
   CCI_A_TYPE_BIGINT,
-  CCI_A_TYPE_BFILE,
-  CCI_A_TYPE_CFILE,
+  CCI_A_TYPE_BLOB,		/* 9 and 10 as in 11.4 */
+  CCI_A_TYPE_CLOB,
   CCI_A_TYPE_REQ_HANDLE,
   CCI_A_TYPE_UINT,
   CCI_A_TYPE_UBIGINT,
   CCI_A_TYPE_DATE_TZ,
   CCI_A_TYPE_INTERNAL_LOB,
-  CCI_A_TYPE_LAST = CCI_A_TYPE_INTERNAL_LOB,
+  CCI_A_TYPE_BFILE,
+  CCI_A_TYPE_CFILE,
+  CCI_A_TYPE_LAST = CCI_A_TYPE_CFILE,
 
   CCI_A_TYTP_LAST = CCI_A_TYPE_LAST	/* typo but backward compatibility */
 } T_CCI_A_TYPE;
@@ -821,6 +825,10 @@ typedef struct
   int precision;
 } T_CCI_PARAM_INFO;
 
+typedef void *T_CCI_BLOB;
+
+typedef void *T_CCI_CLOB;
+
 typedef void *T_CCI_BFILE;
 
 typedef void *T_CCI_CFILE;
@@ -943,6 +951,23 @@ extern "C"
   extern int cci_get_param_info (int req_handle, T_CCI_PARAM_INFO ** param, T_CCI_ERROR * err_buf);
   extern int cci_param_info_free (T_CCI_PARAM_INFO * param);
 
+  /* BLOB/CLOB: before PROTOCOL_V13 the broker's external-file LOB, as in 11.4. From PROTOCOL_V13 an internal LOB:
+   * a new value is kept by the client and uploaded when it is bound; a fetched one is read from the server. */
+  extern int cci_blob_new (int con_h_id, T_CCI_BLOB * blob, T_CCI_ERROR * err_buf);
+  extern long long cci_blob_size (T_CCI_BLOB blob);
+  extern int cci_blob_write (int con_h_id, T_CCI_BLOB blob,
+			     long long start_pos, int length, const char *buf, T_CCI_ERROR * err_buf);
+  extern int cci_blob_read (int con_h_id, T_CCI_BLOB blob,
+			    long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf);
+  extern int cci_blob_free (T_CCI_BLOB blob);
+  extern int cci_clob_new (int con_h_id, T_CCI_CLOB * clob, T_CCI_ERROR * err_buf);
+  extern long long cci_clob_size (T_CCI_CLOB clob);
+  extern int cci_clob_write (int con_h_id, T_CCI_CLOB clob,
+			     long long start_pos, int length, const char *buf, T_CCI_ERROR * err_buf);
+  extern int cci_clob_read (int con_h_id, T_CCI_CLOB clob,
+			    long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf);
+  extern int cci_clob_free (T_CCI_CLOB clob);
+  /* BFILE/CFILE: PROTOCOL_V13 or later only (CAS_ER_VERSION before) */
   extern int cci_bfile_new (int con_h_id, T_CCI_BFILE * bfile, T_CCI_ERROR * err_buf);
   extern long long cci_bfile_size (T_CCI_BFILE bfile);
   extern int cci_bfile_write (int con_h_id, T_CCI_BFILE bfile,

@@ -163,8 +163,8 @@ typedef enum
  * PRIVATE FUNCTION PROTOTYPES						*
  ************************************************************************/
 
-static int prepare_info_decode (char *buf, int *size, T_REQ_HANDLE * req_handle);
-static int out_rs_info_decode (char *buf, int *size, T_REQ_HANDLE * req_handle);
+static int prepare_info_decode (char *buf, int *size, T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle);
+static int out_rs_info_decode (char *buf, int *size, T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle);
 static int get_cursor_pos (T_REQ_HANDLE * req_handle, int offset, char origin);
 static int fetch_info_decode (char *buf, int size, int num_cols, T_TUPLE_VALUE ** tuple_value, T_FETCH_TYPE fetch_type,
 			      T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle);
@@ -175,20 +175,21 @@ static int get_data_set (T_CCI_U_EXT_TYPE u_ext_type, char *col_value_p, T_SET *
 static int get_file_size (char *filename);
 #endif
 static int get_column_info (char *buf_p, int *remain_size, T_CCI_COL_INFO ** ret_col_info, char **next_buf_p,
-			    bool is_prepare);
+			    bool is_prepare, T_CON_HANDLE * con_handle);
 static int oid_get_info_decode (char *buf_p, int remain_size, T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle);
-static int schema_info_decode (char *buf_p, int size, T_REQ_HANDLE * req_handle);
+static int schema_info_decode (char *buf_p, int size, T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle);
 static int col_get_info_decode (char *buf_p, int remain_size, int *col_size, int *col_type, T_REQ_HANDLE * req_handle,
 				T_CON_HANDLE * con_handle);
 
-static int next_result_info_decode (char *buf, int size, T_REQ_HANDLE * req_handle);
+static int next_result_info_decode (char *buf, int size, T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle);
 static int bind_value_conversion (T_CCI_A_TYPE a_type, T_CCI_U_TYPE u_type, char flag, void *value, int length,
 				  T_BIND_VALUE * bind_value);
 static int bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void *value, int size, char *charset,
 				  bool set_default_value, bool typed_null, T_CON_HANDLE * con_handle);
 static int execute_array_info_decode (char *buf, int size, char flag, T_CCI_QUERY_RESULT ** qr, int *res_remain_size);
 static T_CCI_U_TYPE get_basic_utype (T_CCI_U_EXT_TYPE u_ext_type);
-static int parameter_info_decode (char *buf, int size, int num_param, T_CCI_PARAM_INFO ** res_param);
+static int parameter_info_decode (char *buf, int size, int num_param, T_CCI_PARAM_INFO ** res_param,
+				  T_CON_HANDLE * con_handle);
 static int decode_fetch_result (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, char *result_msg_org,
 				char *result_msg_start, int result_msg_size);
 static int qe_close_req_handle_internal (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, bool force_close);
@@ -207,6 +208,8 @@ static T_CCI_U_EXT_TYPE get_ext_utype_from_net_bytes (T_CCI_U_TYPE basic_type, T
 static void confirm_schema_type_info (T_REQ_HANDLE * req_handle, int col_no, T_CCI_U_TYPE u_type, char *col_value_p,
 				      int data_size);
 static int get_charset_type (char type);
+static T_CCI_U_EXT_TYPE lob_type_to_app (T_CON_HANDLE * con_handle, T_CCI_U_EXT_TYPE type);
+static T_CCI_U_EXT_TYPE lob_type_to_wire (T_CON_HANDLE * con_handle, T_CCI_U_EXT_TYPE type);
 
 /************************************************************************
  * INTERFACE VARIABLES							*
@@ -477,7 +480,7 @@ qe_prepare (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, const char *sq
     }
 
   result_msg_size -= 4;
-  err_code = prepare_info_decode (result_msg + 4, &result_msg_size, req_handle);
+  err_code = prepare_info_decode (result_msg + 4, &result_msg_size, req_handle, con_handle);
   if (err_code < 0)
     {
       FREE_MEM (result_msg);
@@ -740,7 +743,7 @@ qe_execute (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, char flag, int
 
       if (include_column_info == 1)
 	{
-	  err_code = prepare_info_decode (msg, &remain_msg_size, req_handle);
+	  err_code = prepare_info_decode (msg, &remain_msg_size, req_handle, con_handle);
 	  if (err_code < 0)
 	    {
 	      FREE_MEM (result_msg);
@@ -917,7 +920,7 @@ qe_prepare_and_execute (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, ch
   result_msg_size -= 4;
   remain_msg_size = result_msg_size;
 
-  err_code = prepare_info_decode (result_msg, &result_msg_size, req_handle);
+  err_code = prepare_info_decode (result_msg, &result_msg_size, req_handle, con_handle);
 
   if (err_code < 0)
     {
@@ -1009,7 +1012,7 @@ qe_prepare_and_execute (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, ch
 
       if (include_column_info == 1)
 	{
-	  err_code = prepare_info_decode (msg, &remain_msg_size, req_handle);
+	  err_code = prepare_info_decode (msg, &remain_msg_size, req_handle, con_handle);
 	  if (err_code < 0)
 	    {
 	      FREE_MEM (result_msg_org);
@@ -1713,6 +1716,12 @@ qe_get_data (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int col_no, i
       return CCI_ER_RESULT_SET_CLOSED;
     }
 
+  if ((a_type == CCI_A_TYPE_BFILE || a_type == CCI_A_TYPE_CFILE) && !hm_broker_support_internal_lob (con_handle))
+    {
+      /* an older broker has no BFILE/CFILE: its BLOB/CLOB is fetched as CCI_A_TYPE_BLOB/CLOB */
+      return CAS_ER_VERSION;
+    }
+
   if (req_handle->stmt_type == CUBRID_STMT_CALL_SP)
     {
       num_cols = req_handle->num_bind + 1;
@@ -1741,7 +1750,7 @@ qe_get_data (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int col_no, i
     }
   else
     {
-      u_ext_type = CCI_GET_RESULT_INFO_TYPE (req_handle->col_info, col_no);
+      u_ext_type = lob_type_to_wire (con_handle, CCI_GET_RESULT_INFO_TYPE (req_handle->col_info, col_no));
     }
 
   NET_STR_TO_INT (data_size, col_value_p);
@@ -1749,7 +1758,7 @@ qe_get_data (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int col_no, i
     {
       *indicator = -1;
       if (a_type == CCI_A_TYPE_STR || a_type == CCI_A_TYPE_SET || a_type == CCI_A_TYPE_BFILE
-	  || a_type == CCI_A_TYPE_CFILE)
+	  || a_type == CCI_A_TYPE_CFILE || a_type == CCI_A_TYPE_BLOB || a_type == CCI_A_TYPE_CLOB)
 	{
 	  *((void **) value) = NULL;
 	}
@@ -1765,7 +1774,7 @@ qe_get_data (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int col_no, i
 	{
 	  *indicator = -1;
 	  if (a_type == CCI_A_TYPE_STR || a_type == CCI_A_TYPE_SET || a_type == CCI_A_TYPE_BFILE
-	      || a_type == CCI_A_TYPE_CFILE)
+	      || a_type == CCI_A_TYPE_CFILE || a_type == CCI_A_TYPE_BLOB || a_type == CCI_A_TYPE_CLOB)
 	    {
 	      *((void **) value) = NULL;
 	    }
@@ -1783,7 +1792,7 @@ qe_get_data (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int col_no, i
 	    {
 	      *indicator = -1;
 	      if (a_type == CCI_A_TYPE_STR || a_type == CCI_A_TYPE_SET || a_type == CCI_A_TYPE_BFILE
-		  || a_type == CCI_A_TYPE_CFILE)
+		  || a_type == CCI_A_TYPE_CFILE || a_type == CCI_A_TYPE_BLOB || a_type == CCI_A_TYPE_CLOB)
 		{
 		  *((void **) value) = NULL;
 		}
@@ -1848,6 +1857,24 @@ qe_get_data (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int col_no, i
       break;
     case CCI_A_TYPE_SET:
       err_code = get_data_set (u_type, col_value_p, (T_SET **) value, data_size);
+      break;
+    case CCI_A_TYPE_BLOB:
+    case CCI_A_TYPE_CLOB:
+      if (u_type == CCI_U_TYPE_BLOB || u_type == CCI_U_TYPE_CLOB)
+	{
+	  T_CCI_INTERNAL_LOB fetched;
+
+	  err_code = qe_get_data_internal_lob (u_type, col_value_p, data_size, &fetched);
+	  if (err_code >= 0)
+	    {
+	      err_code = t_internal_lob_from_fetch (u_type, &fetched, (T_INTERNAL_LOB_HANDLE **) value);
+	    }
+	}
+      else
+	{
+	  /* the external-file LOB: an older broker's BLOB/CLOB, or a BFILE/CFILE */
+	  err_code = qe_get_data_lob (u_type, col_value_p, data_size, value);
+	}
       break;
     case CCI_A_TYPE_BFILE:
     case CCI_A_TYPE_CFILE:
@@ -1948,7 +1975,7 @@ qe_schema_info (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, int type, 
   if (result_code < 0)
     return result_code;
 
-  err_code = schema_info_decode (result_msg + 4, result_msg_size - 4, req_handle);
+  err_code = schema_info_decode (result_msg + 4, result_msg_size - 4, req_handle, con_handle);
   FREE_MEM (result_msg);
   if (err_code < 0)
     return err_code;
@@ -2813,7 +2840,7 @@ qe_next_result (T_REQ_HANDLE * req_handle, char flag, T_CON_HANDLE * con_handle,
 
   hm_req_handle_fetch_buf_free (req_handle);
 
-  err_code = next_result_info_decode (result_msg + 4, result_msg_size - 4, req_handle);
+  err_code = next_result_info_decode (result_msg + 4, result_msg_size - 4, req_handle, con_handle);
 
   FREE_MEM (result_msg);
 
@@ -2989,6 +3016,8 @@ qe_execute_array (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, T_CCI_QU
 					     &cur_cell);
 		  }
 		  break;
+		case CCI_A_TYPE_BLOB:
+		case CCI_A_TYPE_CLOB:
 		case CCI_A_TYPE_BFILE:
 		case CCI_A_TYPE_CFILE:
 		  {
@@ -3146,7 +3175,7 @@ qe_cursor_update (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, int curs
 	  return CCI_ER_TYPE_CONVERSION;
 	}
 
-      u_type = get_basic_utype (req_handle->col_info[index - 1].ext_type);
+      u_type = get_basic_utype (lob_type_to_wire (con_handle, req_handle->col_info[index - 1].ext_type));
       if (u_type <= CCI_U_TYPE_FIRST || u_type > CCI_U_TYPE_LAST)
 	{
 	  net_buf_clear (&net_buf);
@@ -4206,7 +4235,7 @@ qe_get_data_req_handle (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, ch
     }
 
   result_msg_size -= 4;
-  error = out_rs_info_decode (result_msg + 4, &result_msg_size, out_req_handle);
+  error = out_rs_info_decode (result_msg + 4, &result_msg_size, out_req_handle, con_handle);
   if (error < 0)
     {
       goto get_data_error;
@@ -4433,7 +4462,7 @@ qe_get_param_info (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, T_CCI_P
 
   if (res_param)
     {
-      err_code = parameter_info_decode (result_msg + 4, result_msg_size - 4, num_param, res_param);
+      err_code = parameter_info_decode (result_msg + 4, result_msg_size - 4, num_param, res_param, con_handle);
       if (err_code < 0)
 	{
 	  num_param = err_code;
@@ -4969,7 +4998,7 @@ col_info_str_keep (char *old_str, char *new_str)
 }
 
 static int
-prepare_info_decode (char *buf, int *size, T_REQ_HANDLE * req_handle)
+prepare_info_decode (char *buf, int *size, T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle)
 {
   int i;
   int num_bind_info;
@@ -5017,7 +5046,7 @@ prepare_info_decode (char *buf, int *size, T_REQ_HANDLE * req_handle)
   remain_size -= NET_SIZE_BYTE;
   cur_p += NET_SIZE_BYTE;
 
-  num_col_info = get_column_info (cur_p, &remain_size, &col_info, NULL, true);
+  num_col_info = get_column_info (cur_p, &remain_size, &col_info, NULL, true, con_handle);
   if (num_col_info < 0)
     {
       assert (col_info == NULL);
@@ -5057,7 +5086,7 @@ prepare_info_decode (char *buf, int *size, T_REQ_HANDLE * req_handle)
 }
 
 int
-out_rs_info_decode (char *buf, int *size, T_REQ_HANDLE * req_handle)
+out_rs_info_decode (char *buf, int *size, T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle)
 {
   char *cur_p = buf;
   int remain_size = *size;
@@ -5101,7 +5130,7 @@ out_rs_info_decode (char *buf, int *size, T_REQ_HANDLE * req_handle)
   remain_size -= NET_SIZE_BYTE;
   cur_p += NET_SIZE_BYTE;
 
-  num_col_info = get_column_info (cur_p, &remain_size, &col_info, NULL, true);
+  num_col_info = get_column_info (cur_p, &remain_size, &col_info, NULL, true, con_handle);
   if (num_col_info < 0)
     {
       return num_col_info;
@@ -5430,7 +5459,8 @@ get_file_size (char *filename)
 #endif
 
 static int
-get_column_info (char *buf_p, int *size, T_CCI_COL_INFO ** ret_col_info, char **next_buf_p, bool is_prepare)
+get_column_info (char *buf_p, int *size, T_CCI_COL_INFO ** ret_col_info, char **next_buf_p, bool is_prepare,
+		 T_CON_HANDLE * con_handle)
 {
   char *cur_p = buf_p;
   int remain_size = *size;
@@ -5506,6 +5536,7 @@ get_column_info (char *buf_p, int *size, T_CCI_COL_INFO ** ret_col_info, char **
 	      col_info[i].charset = CCI_CHARSET_NONE;
 	      col_info[i].ext_type = type;
 	    }
+	  col_info[i].ext_type = lob_type_to_app (con_handle, col_info[i].ext_type);
 
 	  if (remain_size < NET_SIZE_SHORT)
 	    {
@@ -5724,7 +5755,7 @@ oid_get_info_decode (char *buf_p, int remain_size, T_REQ_HANDLE * req_handle, T_
 
   size = remain_size;
 
-  num_col_info = get_column_info (cur_p, &size, &col_info, &next_buf_p, false);
+  num_col_info = get_column_info (cur_p, &size, &col_info, &next_buf_p, false, con_handle);
   if (num_col_info < 0)
     {
       assert (col_info == NULL);
@@ -5750,7 +5781,7 @@ oid_get_info_decode (char *buf_p, int remain_size, T_REQ_HANDLE * req_handle, T_
 }
 
 static int
-schema_info_decode (char *buf_p, int size, T_REQ_HANDLE * req_handle)
+schema_info_decode (char *buf_p, int size, T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle)
 {
   T_CCI_COL_INFO *col_info = NULL;
   int remain_size = size;
@@ -5768,7 +5799,7 @@ schema_info_decode (char *buf_p, int size, T_REQ_HANDLE * req_handle)
   cur_p += 4;
 
   size = remain_size;
-  num_col_info = get_column_info (cur_p, &size, &col_info, NULL, false);
+  num_col_info = get_column_info (cur_p, &size, &col_info, NULL, false, con_handle);
   if (num_col_info < 0)
     {
       assert (col_info == NULL);
@@ -5803,7 +5834,7 @@ col_get_info_decode (char *buf_p, int remain_size, int *col_size, int *col_type,
   cur_p += 1;
 
   size = remain_size;
-  num_col_info = get_column_info (cur_p, &size, &col_info, &next_buf_p, false);
+  num_col_info = get_column_info (cur_p, &size, &col_info, &next_buf_p, false, con_handle);
   if (num_col_info < 0)
     {
       assert (col_info == NULL);
@@ -5843,7 +5874,7 @@ col_get_info_decode (char *buf_p, int remain_size, int *col_size, int *col_type,
 }
 
 static int
-next_result_info_decode (char *buf, int size, T_REQ_HANDLE * req_handle)
+next_result_info_decode (char *buf, int size, T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle)
 {
   int remain_size = size;
   char *cur_p = buf;
@@ -5881,7 +5912,7 @@ next_result_info_decode (char *buf, int size, T_REQ_HANDLE * req_handle)
   cur_p += 1;
 
   size = remain_size;
-  num_col_info = get_column_info (cur_p, &size, &col_info, NULL, true);
+  num_col_info = get_column_info (cur_p, &size, &col_info, NULL, true, con_handle);
   if (num_col_info < 0)
     {
       assert (col_info == NULL);
@@ -6717,6 +6748,28 @@ bind_value_conversion (T_CCI_A_TYPE a_type, T_CCI_U_TYPE u_type, char flag, void
 	  return CCI_ER_TYPE_CONVERSION;
 	}
     }
+  else if (a_type == CCI_A_TYPE_BLOB || a_type == CCI_A_TYPE_CLOB)
+    {
+      /* the handle, not u_type, decides what is sent: an external-file LOB goes as its own 23/24, as in 11.4 */
+      if (u_type != CCI_U_TYPE_BLOB && u_type != CCI_U_TYPE_CLOB && u_type != CCI_U_TYPE_BFILE
+	  && u_type != CCI_U_TYPE_CFILE)
+	{
+	  return CCI_ER_TYPE_CONVERSION;
+	}
+      if (IS_INTERNAL_LOB_HANDLE (value))
+	{
+	  /* uploaded by cci_bind_param () only: not in an array or a cursor update */
+	  return CCI_ER_NOT_IMPLEMENTED;
+	}
+      ALLOC_COPY_BIT (bind_value->value, (T_LOB *) value, sizeof (T_LOB));
+      if (bind_value->value == NULL)
+	{
+	  return CCI_ER_NO_MORE_MEMORY;
+	}
+      bind_value->size = sizeof (T_LOB);
+      bind_value->flag = BIND_PTR_DYNAMIC;
+      u_type = ((T_LOB *) value)->type;
+    }
   else if (a_type == CCI_A_TYPE_BFILE || a_type == CCI_A_TYPE_CFILE)
     {
       switch (u_type)
@@ -6724,6 +6777,10 @@ bind_value_conversion (T_CCI_A_TYPE a_type, T_CCI_U_TYPE u_type, char flag, void
 	case CCI_U_TYPE_BFILE:
 	case CCI_U_TYPE_CFILE:
 	  {
+	    if (IS_INTERNAL_LOB_HANDLE (value))
+	      {
+		return CCI_ER_INVALID_LOB_HANDLE;
+	      }
 	    ALLOC_COPY_BIT (bind_value->value, (T_LOB *) value, sizeof (T_LOB));
 	    bind_value->size = sizeof (T_LOB);
 	    bind_value->flag = BIND_PTR_DYNAMIC;
@@ -7198,7 +7255,7 @@ get_basic_utype (T_CCI_U_EXT_TYPE u_ext_type)
 }
 
 static int
-parameter_info_decode (char *buf, int size, int num_param, T_CCI_PARAM_INFO ** res_param)
+parameter_info_decode (char *buf, int size, int num_param, T_CCI_PARAM_INFO ** res_param, T_CON_HANDLE * con_handle)
 {
   T_CCI_PARAM_INFO *param;
   int i;
@@ -7249,6 +7306,7 @@ parameter_info_decode (char *buf, int size, int num_param, T_CCI_PARAM_INFO ** r
 	  /* legacy server : one byte */
 	  param[i].ext_type = basic_type;
 	}
+      param[i].ext_type = lob_type_to_app (con_handle, param[i].ext_type);
 
       if (size < 2)
 	{
@@ -7545,6 +7603,37 @@ get_charset_type (char type)
       charset = (type & CCI_CHARSET_MASK);
     }
   return charset;
+}
+
+/* A broker before PROTOCOL_V13 sends its BLOB/CLOB (external files) as 23/24. The application sees them as a
+ * PROTOCOL_V13 broker's BLOB/CLOB, encoded the same way (CCI_GET_COLLECTION_DOMAIN gives CCI_U_TYPE_BLOB/CLOB), and the
+ * value is read as it was sent (lob_type_to_wire). */
+static T_CCI_U_EXT_TYPE
+lob_type_to_app (T_CON_HANDLE * con_handle, T_CCI_U_EXT_TYPE type)
+{
+  if (hm_broker_support_internal_lob (con_handle) || (type != CCI_U_TYPE_BFILE && type != CCI_U_TYPE_CFILE))
+    {
+      return type;
+    }
+  return get_ext_utype_from_net_bytes (CCI_U_TYPE_NULL, (type == CCI_U_TYPE_BFILE) ? CCI_U_TYPE_BLOB : CCI_U_TYPE_CLOB);
+}
+
+static T_CCI_U_EXT_TYPE
+lob_type_to_wire (T_CON_HANDLE * con_handle, T_CCI_U_EXT_TYPE type)
+{
+  if (hm_broker_support_internal_lob (con_handle))
+    {
+      return type;
+    }
+  if (type == get_ext_utype_from_net_bytes (CCI_U_TYPE_NULL, CCI_U_TYPE_BLOB))
+    {
+      return CCI_U_TYPE_BFILE;
+    }
+  if (type == get_ext_utype_from_net_bytes (CCI_U_TYPE_NULL, CCI_U_TYPE_CLOB))
+    {
+      return CCI_U_TYPE_CFILE;
+    }
+  return type;
 }
 
 int
@@ -7994,4 +8083,48 @@ qe_hold_shared_upload (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, lon
 	    }
 	}
     }
+}
+
+/* Bind the finished upload token at index (1-based); the binding owns it from now on (qe_discard_unsent_uploads) */
+int
+qe_bind_internal_lob_upload (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int index, T_CCI_U_TYPE lob_type,
+			     long long token, long long data_length, long long logical_length)
+{
+  char marker[160];
+  T_CCI_U_TYPE upload_type;
+  T_CCI_BIT marker_value;
+  char type_char;
+  int marker_length;
+  int error;
+
+  if ((lob_type != CCI_U_TYPE_BLOB && lob_type != CCI_U_TYPE_CLOB) || token <= 0 || data_length < 0
+      || logical_length < 0)
+    {
+      return CCI_ER_INVALID_ARGS;
+    }
+  type_char = (lob_type == CCI_U_TYPE_BLOB) ? 'B' : 'C';
+  upload_type = (lob_type == CCI_U_TYPE_BLOB) ? CCI_U_TYPE_INTERNAL_BLOB_UPLOAD : CCI_U_TYPE_INTERNAL_CLOB_UPLOAD;
+  marker_length = snprintf (marker, sizeof (marker), "@internal_lob_upload:%c:%lld:%lld:%lld", type_char, token,
+			    data_length, logical_length);
+  if (marker_length <= 0 || marker_length >= (int) sizeof (marker))
+    {
+      return CCI_ER_INVALID_ARGS;
+    }
+
+  marker_value.size = marker_length;
+  marker_value.buf = marker;
+  qe_discard_unsent_uploads (con_handle, req_handle, index - 1);
+  error = qe_bind_param (req_handle, index, CCI_A_TYPE_BIT, &marker_value, UNMEASURED_LENGTH, upload_type, 0);
+  if (error >= 0 && req_handle->unsent_uploads == NULL)
+    {
+      req_handle->unsent_uploads = (long long *) CALLOC (req_handle->num_bind, sizeof (long long));
+      req_handle->bound_uploads = (long long *) CALLOC (req_handle->num_bind, sizeof (long long));
+    }
+  if (error >= 0 && req_handle->unsent_uploads != NULL && req_handle->bound_uploads != NULL)
+    {
+      req_handle->unsent_uploads[index - 1] = token;
+      req_handle->bound_uploads[index - 1] = token;
+      qe_hold_shared_upload (con_handle, req_handle, token);
+    }
+  return error;
 }

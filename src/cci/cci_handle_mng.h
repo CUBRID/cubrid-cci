@@ -316,6 +316,11 @@ typedef struct
   T_INTERNAL_LOB_READER *lob_readers;
   long long last_lob_reader_token;
 
+  /* the download cci_blob_read left open, so the next read from where it stopped goes on with it */
+  INT64 lob_read_owner;		/* the handle's id (T_INTERNAL_LOB_HANDLE), 0 if none */
+  long long lob_read_handle;
+  INT64 lob_read_pos;
+
 } T_CON_HANDLE;
 
 /************************************************************************
