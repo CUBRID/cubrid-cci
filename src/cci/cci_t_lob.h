@@ -75,11 +75,11 @@ typedef enum
   INTERNAL_LOB_INLINE		/* fetched: the content itself (a value with no storage) */
 } T_INTERNAL_LOB_STATE;
 
-/* What cci_blob_new on PROTOCOL_V13 and a fetch of an internal BLOB/CLOB give the application. The type comes first
- * as in T_LOB, where it is 23/24, so one T_CCI_BLOB can point at either. */
+/* What cci_blob_new on PROTOCOL_V13 and a fetch of an internal BLOB/CLOB give the application. The first member is
+ * where T_LOB has its LOB type; this one has a type no T_LOB has, so one T_CCI_BLOB can point at either. */
 typedef struct
 {
-  T_CCI_U_TYPE type;		/* CCI_U_TYPE_BLOB/CLOB */
+  T_CCI_U_TYPE upload_type;	/* CCI_U_TYPE_INTERNAL_BLOB/CLOB_UPLOAD: what the value goes up as when bound */
   T_INTERNAL_LOB_STATE state;
   INT64 length;			/* bytes */
   INT64 id;			/* unique in the process: owner mark of a connection's read slot */
@@ -93,7 +93,10 @@ typedef struct
 #define INTERNAL_LOB_MAX_LENGTH ((INT64) 1 << 32)
 
 #define IS_INTERNAL_LOB_HANDLE(p) \
-  (((T_LOB *) (p))->type == CCI_U_TYPE_BLOB || ((T_LOB *) (p))->type == CCI_U_TYPE_CLOB)
+  (((T_LOB *) (p))->type == CCI_U_TYPE_INTERNAL_BLOB_UPLOAD || ((T_LOB *) (p))->type == CCI_U_TYPE_INTERNAL_CLOB_UPLOAD)
+/* CCI_U_TYPE_BLOB/CLOB */
+#define INTERNAL_LOB_TYPE(lob) \
+  (((lob)->upload_type == CCI_U_TYPE_INTERNAL_BLOB_UPLOAD) ? CCI_U_TYPE_BLOB : CCI_U_TYPE_CLOB)
 
 /************************************************************************
  * EXPORTED FUNCTION PROTOTYPES						*

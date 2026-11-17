@@ -3810,19 +3810,14 @@ cci_lob_new (int mapped_conn_id, void *lob, T_CCI_U_TYPE type, T_CCI_ERROR * err
 	  goto ret;
 	}
     }
-  if (!hm_broker_support_internal_lob (con_handle))
+  if ((type == CCI_U_TYPE_BFILE || type == CCI_U_TYPE_CFILE) && !hm_broker_support_internal_lob (con_handle))
     {
-      if (type == CCI_U_TYPE_BFILE || type == CCI_U_TYPE_CFILE)
-	{
-	  error = CAS_ER_VERSION;
-	  goto ret;
-	}
-      /* the broker's BLOB/CLOB is an external-file LOB, the same request and numbers as BFILE/CFILE */
-      type = (type == CCI_U_TYPE_BLOB) ? CCI_U_TYPE_BFILE : CCI_U_TYPE_CFILE;
+      error = CAS_ER_VERSION;
+      goto ret;
     }
-  else if (type == CCI_U_TYPE_BLOB || type == CCI_U_TYPE_CLOB)
+  if ((type == CCI_U_TYPE_BLOB || type == CCI_U_TYPE_CLOB) && hm_broker_support_internal_lob (con_handle))
     {
-      /* kept by the client until it is bound */
+      /* kept by the client until it is bound; before PROTOCOL_V13 it is an external-file LOB, as in 11.4 */
       error = t_internal_lob_new (type, (T_INTERNAL_LOB_HANDLE **) lob);
       goto ret;
     }
@@ -3848,18 +3843,7 @@ cci_lob_new (int mapped_conn_id, void *lob, T_CCI_U_TYPE type, T_CCI_ERROR * err
       goto ret;
     }
 
-  if (type == CCI_U_TYPE_BFILE)
-    {
-      *(T_CCI_BFILE *) lob = (T_CCI_BFILE) lob_handle;
-    }
-  else if (type == CCI_U_TYPE_CFILE)
-    {
-      *(T_CCI_CFILE *) lob = (T_CCI_CFILE) lob_handle;
-    }
-  else
-    {
-      *(T_CCI_CFILE *) lob = NULL;
-    }
+  *(T_LOB **) lob = lob_handle;
 
 ret:
   set_error_buffer (&(con_handle->err_buf), error, NULL);
@@ -7645,7 +7629,8 @@ internal_lob_bind_upload (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, 
 			  T_INTERNAL_LOB_HANDLE * lob)
 {
   char config[INTERNAL_LOB_STREAM_CONFIG_SIZE];
-  long long logical_length = (lob->type == CCI_U_TYPE_BLOB) ? lob->length * 8 : lob->length;
+  T_CCI_U_TYPE lob_type = INTERNAL_LOB_TYPE (lob);
+  long long logical_length = (lob_type == CCI_U_TYPE_BLOB) ? lob->length * 8 : lob->length;
   T_CCI_ERROR ignored;
   INT64 token = 0;
   int error;
@@ -7665,7 +7650,7 @@ internal_lob_bind_upload (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, 
     }
 
   reset_error_buffer (&con_handle->err_buf);
-  internal_lob_upload_config (config, lob->type, lob->length, logical_length);
+  internal_lob_upload_config (config, lob_type, lob->length, logical_length);
   error = qe_stream_init (con_handle, STREAM_KIND_INTERNAL_LOB, config, sizeof (config), &con_handle->err_buf);
   while (IS_OUT_TRAN (con_handle) && IS_ER_TO_RECONNECT (error, con_handle->err_buf.err_code))
     {
@@ -7696,7 +7681,7 @@ internal_lob_bind_upload (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, 
       return error;
     }
 
-  return qe_bind_internal_lob_upload (con_handle, req_handle, index, lob->type, token, lob->length, logical_length);
+  return qe_bind_internal_lob_upload (con_handle, req_handle, index, lob_type, token, lob->length, logical_length);
 }
 
 /*

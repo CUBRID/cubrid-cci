@@ -126,7 +126,7 @@ internal_lob_alloc (T_CCI_U_TYPE type, T_INTERNAL_LOB_STATE state)
   if (lob != NULL)
     {
       memset (lob, 0, sizeof (T_INTERNAL_LOB_HANDLE));
-      lob->type = type;
+      lob->upload_type = (type == CCI_U_TYPE_BLOB) ? CCI_U_TYPE_INTERNAL_BLOB_UPLOAD : CCI_U_TYPE_INTERNAL_CLOB_UPLOAD;
       lob->state = state;
       lob->id = (INT64) ATOMIC_INC_64 (&last_id, 1);
       lob->spill_fd = -1;

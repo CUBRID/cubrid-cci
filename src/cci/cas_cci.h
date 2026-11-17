@@ -369,8 +369,8 @@ typedef enum
   CCI_U_TYPE_RESULTSET = 20,
   CCI_U_TYPE_BIGINT = 21,
   CCI_U_TYPE_DATETIME = 22,
-  CCI_U_TYPE_BFILE = 23,
-  CCI_U_TYPE_CFILE = 24,
+  CCI_U_TYPE_BLOB = 23,		/* before PROTOCOL_V13 an external-file LOB, from PROTOCOL_V13 an internal LOB */
+  CCI_U_TYPE_CLOB = 24,
   CCI_U_TYPE_ENUM = 25,
   CCI_U_TYPE_USHORT = 26,
   CCI_U_TYPE_UINT = 27,
@@ -383,11 +383,9 @@ typedef enum
   CCI_U_TYPE_TIMETZ = 33,	/* internal use only - RESERVED */
   /* end of disabled types */
   CCI_U_TYPE_JSON = 34,
-  /* 0..34 are the numbers every broker uses; the ones below come only from a PROTOCOL_V13 broker with internal LOB.
-   * An older broker's BLOB/CLOB column (sent as 23/24) is reported as CCI_U_TYPE_BLOB/CLOB too: like every type from
-   * 32, as a column type it is encoded (CCI_GET_COLLECTION_DOMAIN of CCI_GET_RESULT_INFO_TYPE gives the number). */
-  CCI_U_TYPE_BLOB = 35,
-  CCI_U_TYPE_CLOB = 36,
+  /* 0..34 are the numbers every broker uses; the ones below come only from a PROTOCOL_V13 broker */
+  CCI_U_TYPE_BFILE = 35,
+  CCI_U_TYPE_CFILE = 36,
   CCI_U_TYPE_INTERNAL_BLOB_UPLOAD = 37,
   CCI_U_TYPE_INTERNAL_CLOB_UPLOAD = 38,
   CCI_U_TYPE_LAST = CCI_U_TYPE_INTERNAL_CLOB_UPLOAD

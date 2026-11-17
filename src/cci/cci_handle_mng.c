@@ -1189,7 +1189,7 @@ hm_broker_reconnect_when_server_down (T_CON_HANDLE * con_handle)
 }
 
 /* PROTOCOL_V13 brought BLOB/CLOB (internal LOB) with their wire format and the stream requests (45-53); an older
- * broker has the external-file BLOB/CLOB, which this driver calls BFILE/CFILE. */
+ * broker's BLOB/CLOB (the same type numbers) is an external-file LOB and it has no BFILE/CFILE. */
 bool
 hm_broker_support_internal_lob (T_CON_HANDLE * con_handle)
 {
