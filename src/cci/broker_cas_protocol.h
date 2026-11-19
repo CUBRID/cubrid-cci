@@ -100,6 +100,8 @@ extern "C"
 #define CAS_INFO_FLAG_MASK_AUTOCOMMIT		0x01
 #define CAS_INFO_FLAG_MASK_FORCE_OUT_TRAN       0x02
 #define CAS_INFO_FLAG_MASK_NEW_SESSION_ID       0x04
+/* A stream session is open, so the CAS owes the auto-commit to its end (PROTOCOL_V13; earlier servers leave it 1) */
+#define CAS_INFO_FLAG_MASK_STREAM_OPEN          0x08
 
 /* The flags byte of the stream requests and replies (the engine's cas_protocol.h), required on INIT, READ_OPEN and
  * READ. A bit not listed for a request is refused with CAS_ER_ARGS. */

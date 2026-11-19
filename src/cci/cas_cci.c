@@ -101,6 +101,9 @@ int wsa_initialize ();
   ((c)->broker_info[BROKER_INFO_STATEMENT_POOLING] == CAS_STATEMENT_POOLING_ON)
 #define IS_OUT_TRAN(c) ((c)->con_status == CCI_CON_STATUS_OUT_TRAN)
 #define IS_IN_TRAN(c) ((c)->con_status == CCI_CON_STATUS_IN_TRAN)
+#define IS_STREAM_OPEN(c) \
+  (hm_broker_support_internal_lob (c) \
+   && ((c)->cas_info[CAS_INFO_ADDITIONAL_FLAG] & CAS_INFO_FLAG_MASK_STREAM_OPEN))
 #define IS_FORCE_FAILBACK(c) ((c)->force_failback == 1)
 #define IS_ER_COMMUNICATION(e) \
   ((e) == CCI_ER_COMMUNICATION || (e) == CAS_ER_COMMUNICATION)
@@ -181,6 +184,7 @@ static int reset_connect (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, 
 
 static int bind_param_internal (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int index, T_CCI_A_TYPE a_type,
 				void *value, int length, T_CCI_U_TYPE u_type, char flag);
+static bool has_open_lob_reader (T_CON_HANDLE * con_handle);
 static int internal_lob_bind_upload (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int index,
 				     T_CCI_U_TYPE u_type, T_INTERNAL_LOB_HANDLE * lob);
 static int internal_lob_read_ref (T_CON_HANDLE * con_handle, int mapped_conn_id, T_INTERNAL_LOB_HANDLE * lob,
@@ -2296,7 +2300,9 @@ cci_close_req_handle (int mapped_stmt_id)
       /* free req_handle resources */
       req_handle_content_free_for_pool (req_handle);
 
-      if (con_handle->autocommit_mode == CCI_AUTOCOMMIT_TRUE && IS_IN_TRAN (con_handle))
+      /* an open download or upload holds the transaction; the CAS commits when it ends */
+      if (con_handle->autocommit_mode == CCI_AUTOCOMMIT_TRUE && IS_IN_TRAN (con_handle) && !IS_STREAM_OPEN (con_handle)
+	  && !has_open_lob_reader (con_handle))
 	{
 	  T_CCI_ERROR err_buf;
 	  qe_end_tran (con_handle, CCI_TRAN_ROLLBACK, &err_buf);
@@ -7322,6 +7328,22 @@ internal_lob_reader_link (T_CON_HANDLE * con_handle, long long token)
       link = &(*link)->next;
     }
   return link;
+}
+
+/* a download whose server handle is still open keeps the CAS in the transaction */
+static bool
+has_open_lob_reader (T_CON_HANDLE * con_handle)
+{
+  T_INTERNAL_LOB_READER *reader;
+
+  for (reader = con_handle->lob_readers; reader != NULL; reader = reader->next)
+    {
+      if (reader->handle != 0)
+	{
+	  return true;
+	}
+    }
+  return false;
 }
 
 /*
