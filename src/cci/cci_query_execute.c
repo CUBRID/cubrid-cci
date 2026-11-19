@@ -8101,7 +8101,10 @@ qe_bind_internal_lob_upload (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handl
 
   marker_value.size = marker_length;
   marker_value.buf = marker;
-  qe_discard_unsent_uploads (con_handle, req_handle, index - 1);
+  if (index >= 1 && index <= req_handle->num_bind)
+    {
+      qe_discard_unsent_uploads (con_handle, req_handle, index - 1);
+    }
   error = qe_bind_param (req_handle, index, CCI_A_TYPE_BIT, &marker_value, UNMEASURED_LENGTH, upload_type, 0);
   if (error >= 0 && req_handle->unsent_uploads == NULL)
     {

@@ -1209,7 +1209,11 @@ bind_param_internal (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, int i
       return internal_lob_bind_upload (con_handle, req_handle, index, u_type, (T_INTERNAL_LOB_HANDLE *) value);
     }
 
-  qe_discard_unsent_uploads (con_handle, req_handle, index - 1);
+  /* a bad index fails in qe_bind_param without touching the bindings (index 0 would discard them all) */
+  if (index >= 1 && index <= req_handle->num_bind)
+    {
+      qe_discard_unsent_uploads (con_handle, req_handle, index - 1);
+    }
   return qe_bind_param (req_handle, index, a_type, value, length, u_type, flag);
 }
 
