@@ -6990,6 +6990,9 @@ cci_stream_pack_int64 (char *ptr, unsigned long long value)
 #define STREAM_KIND_INTERNAL_LOB 1
 #define INTERNAL_LOB_STREAM_CONFIG_VERSION 1
 #define INTERNAL_LOB_STREAM_CONFIG_SIZE (NET_SIZE_INT * 2 + NET_SIZE_INT64 * 2)
+/* the logical length the engine checks: bits for a BLOB, bytes for a CLOB; -1 (not known) stays */
+#define INTERNAL_LOB_LOGICAL_LENGTH(type, data_length) \
+  ((data_length) < 0 ? (data_length) : (type) == CCI_U_TYPE_BLOB ? (data_length) * 8 : (data_length))
 
 static void
 internal_lob_upload_config (char *config, T_CCI_U_TYPE lob_type, long long data_length, long long logical_length)
@@ -7002,23 +7005,22 @@ internal_lob_upload_config (char *config, T_CCI_U_TYPE lob_type, long long data_
 }
 
 int
-cci_stream_init_internal_lob (int mapped_conn_id, T_CCI_U_TYPE lob_type, long long data_length,
-			      long long logical_length, T_CCI_ERROR * err_buf)
+cci_stream_init_internal_lob (int mapped_conn_id, T_CCI_U_TYPE lob_type, long long data_length, T_CCI_ERROR * err_buf)
 {
   char config[INTERNAL_LOB_STREAM_CONFIG_SIZE];
 
-  if ((lob_type != CCI_U_TYPE_BLOB && lob_type != CCI_U_TYPE_CLOB) || data_length < 0 || logical_length < 0)
+  if ((lob_type != CCI_U_TYPE_BLOB && lob_type != CCI_U_TYPE_CLOB) || data_length < -1)
     {
       set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
       return CCI_ER_INVALID_ARGS;
     }
-  internal_lob_upload_config (config, lob_type, data_length, logical_length);
+  internal_lob_upload_config (config, lob_type, data_length, INTERNAL_LOB_LOGICAL_LENGTH (lob_type, data_length));
   return cci_stream_init (mapped_conn_id, STREAM_KIND_INTERNAL_LOB, config, sizeof (config), err_buf);
 }
 
 int
 cci_bind_internal_lob_upload (int mapped_stmt_id, int index, T_CCI_U_TYPE lob_type, long long token,
-			      long long data_length, long long logical_length)
+			      long long data_length)
 {
   T_CON_HANDLE *con_handle = NULL;
   T_REQ_HANDLE *req_handle = NULL;
@@ -7035,7 +7037,8 @@ cci_bind_internal_lob_upload (int mapped_stmt_id, int index, T_CCI_U_TYPE lob_ty
     }
   else
     {
-      error = qe_bind_internal_lob_upload (con_handle, req_handle, index, lob_type, token, data_length, logical_length);
+      error = qe_bind_internal_lob_upload (con_handle, req_handle, index, lob_type, token, data_length,
+					   INTERNAL_LOB_LOGICAL_LENGTH (lob_type, data_length));
     }
   con_handle->used = false;
   return error;
@@ -7656,7 +7659,7 @@ internal_lob_bind_upload (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, 
 {
   char config[INTERNAL_LOB_STREAM_CONFIG_SIZE];
   T_CCI_U_TYPE lob_type = INTERNAL_LOB_TYPE (lob);
-  long long logical_length = (lob_type == CCI_U_TYPE_BLOB) ? lob->length * 8 : lob->length;
+  long long logical_length = INTERNAL_LOB_LOGICAL_LENGTH (lob_type, lob->length);
   T_CCI_ERROR ignored;
   INT64 token = 0;
   int error;
