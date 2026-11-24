@@ -157,6 +157,8 @@ typedef struct
   T_CCI_CUBRID_STMT first_stmt_type;
   int num_bind;
   T_BIND_VALUE *bind_value;
+  long long *unsent_uploads;	/* per bind, an upload token bound by cci_bind_internal_lob_upload no execute sent */
+  long long *bound_uploads;	/* per bind, the upload token bound there, executed or not */
   char *bind_mode;
   T_CCI_COL_INFO *col_info;
   int bind_array_size;
@@ -205,6 +207,19 @@ typedef struct
   SSL_CTX *ctx;
   bool is_connected;
 } T_SSL_HANDLE;
+
+/* one cci_internal_lob_open (): its download handle and the first piece the open brought */
+typedef struct t_internal_lob_reader T_INTERNAL_LOB_READER;
+struct t_internal_lob_reader
+{
+  long long token;
+  long long handle;		/* 0 once the server released it */
+  bool eof;
+  char *chunk;
+  int chunk_pos;
+  int chunk_len;
+  T_INTERNAL_LOB_READER *next;
+};
 
 /* TLS mode from the sslmode URL property; same names and order as JDBC (cubrid.jdbc.jci.SslMode).
  * Declared here rather than in cci_ssl.h: cci_properties.c cannot include cci_ssl.h on Windows, where its
@@ -297,6 +312,15 @@ typedef struct
   /* ssl */
   T_SSL_HANDLE ssl_handle;
 
+  /* cci_internal_lob_open () readers not closed yet */
+  T_INTERNAL_LOB_READER *lob_readers;
+  long long last_lob_reader_token;
+
+  /* the download cci_blob_read left open, so the next read from where it stopped goes on with it */
+  INT64 lob_read_owner;		/* the handle's id (T_INTERNAL_LOB_HANDLE), 0 if none */
+  long long lob_read_handle;
+  INT64 lob_read_pos;
+
 } T_CON_HANDLE;
 
 /************************************************************************
@@ -342,6 +366,7 @@ extern bool hm_broker_match_the_protocol (T_BROKER_VERSION broker_version, int r
 
 extern bool hm_broker_support_holdable_result (T_CON_HANDLE * con_handle);
 extern bool hm_broker_reconnect_when_server_down (T_CON_HANDLE * con_handle);
+extern bool hm_broker_support_internal_lob (T_CON_HANDLE * con_handle);
 
 extern void hm_set_con_handle_holdable (T_CON_HANDLE * con_handle, int holdable);
 extern int hm_get_con_handle_holdable (T_CON_HANDLE * con_handle);

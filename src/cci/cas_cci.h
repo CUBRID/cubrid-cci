@@ -297,6 +297,17 @@ typedef struct
   char *buf;
 } T_CCI_BIT;
 
+/* An internal LOB column is fetched as a reference: the value's byte length plus the locator that names it.
+ * cci_internal_lob_open() turns the locator into a read token. */
+typedef struct
+{
+  long long length;		/* value's byte length */
+  int locator_size;		/* 0 when the content came inline */
+  char *locator;		/* NULL when the content came inline */
+  int content_size;		/* inline content length; 0 when this is a reference */
+  char *content;		/* inline content; NULL when this is a reference */
+} T_CCI_INTERNAL_LOB;
+
 typedef struct
 {
   short yr;
@@ -358,23 +369,26 @@ typedef enum
   CCI_U_TYPE_RESULTSET = 20,
   CCI_U_TYPE_BIGINT = 21,
   CCI_U_TYPE_DATETIME = 22,
-  CCI_U_TYPE_BFILE = 23,
-  CCI_U_TYPE_CFILE = 24,
-  CCI_U_TYPE_BLOB = 25,
-  CCI_U_TYPE_CLOB = 26,
-  CCI_U_TYPE_ENUM = 27,
-  CCI_U_TYPE_USHORT = 28,
-  CCI_U_TYPE_UINT = 29,
-  CCI_U_TYPE_UBIGINT = 30,
-  CCI_U_TYPE_TIMESTAMPTZ = 31,
-  CCI_U_TYPE_TIMESTAMPLTZ = 32,
-  CCI_U_TYPE_DATETIMETZ = 33,
-  CCI_U_TYPE_DATETIMELTZ = 34,
+  CCI_U_TYPE_BLOB = 23,		/* before PROTOCOL_V13 an external-file LOB, from PROTOCOL_V13 an internal LOB */
+  CCI_U_TYPE_CLOB = 24,
+  CCI_U_TYPE_ENUM = 25,
+  CCI_U_TYPE_USHORT = 26,
+  CCI_U_TYPE_UINT = 27,
+  CCI_U_TYPE_UBIGINT = 28,
+  CCI_U_TYPE_TIMESTAMPTZ = 29,
+  CCI_U_TYPE_TIMESTAMPLTZ = 30,
+  CCI_U_TYPE_DATETIMETZ = 31,
+  CCI_U_TYPE_DATETIMELTZ = 32,
   /* Disabled type */
-  CCI_U_TYPE_TIMETZ = 35,	/* internal use only - RESERVED */
+  CCI_U_TYPE_TIMETZ = 33,	/* internal use only - RESERVED */
   /* end of disabled types */
-  CCI_U_TYPE_JSON = 36,
-  CCI_U_TYPE_LAST = CCI_U_TYPE_JSON
+  CCI_U_TYPE_JSON = 34,
+  /* 0..34 are the numbers every broker uses; the ones below come only from a PROTOCOL_V13 broker */
+  CCI_U_TYPE_BFILE = 35,
+  CCI_U_TYPE_CFILE = 36,
+  CCI_U_TYPE_INTERNAL_BLOB_UPLOAD = 37,
+  CCI_U_TYPE_INTERNAL_CLOB_UPLOAD = 38,
+  CCI_U_TYPE_LAST = CCI_U_TYPE_INTERNAL_CLOB_UPLOAD
 } T_CCI_U_TYPE;
 
 typedef unsigned char T_CCI_U_EXT_TYPE;
@@ -392,13 +406,16 @@ typedef enum
   CCI_A_TYPE_DATE,
   CCI_A_TYPE_SET,
   CCI_A_TYPE_BIGINT,
-  CCI_A_TYPE_BFILE,
-  CCI_A_TYPE_CFILE,
+  CCI_A_TYPE_BLOB,		/* 9 and 10 as in 11.4 */
+  CCI_A_TYPE_CLOB,
   CCI_A_TYPE_REQ_HANDLE,
   CCI_A_TYPE_UINT,
   CCI_A_TYPE_UBIGINT,
   CCI_A_TYPE_DATE_TZ,
-  CCI_A_TYPE_LAST = CCI_A_TYPE_DATE_TZ,
+  CCI_A_TYPE_INTERNAL_LOB,
+  CCI_A_TYPE_BFILE,
+  CCI_A_TYPE_CFILE,
+  CCI_A_TYPE_LAST = CCI_A_TYPE_CFILE,
 
   CCI_A_TYTP_LAST = CCI_A_TYPE_LAST	/* typo but backward compatibility */
 } T_CCI_A_TYPE;
@@ -513,6 +530,8 @@ typedef enum
   CCI_ER_SSL_HANDSHAKE = -21047,
   /* in the CCI range unlike CCI_ER_SSL_HANDSHAKE above, whose -21047 is kept as is for compatibility */
   CCI_ER_SSL_CERT_VERIFY = -20047,
+
+  CCI_ER_NOT_SUPPORTED_PROTOCOL = -20048,
 
   CCI_ER_NOT_IMPLEMENTED = -20099,
   CCI_ER_END = -20100
@@ -804,6 +823,10 @@ typedef struct
   int precision;
 } T_CCI_PARAM_INFO;
 
+typedef void *T_CCI_BLOB;
+
+typedef void *T_CCI_CLOB;
+
 typedef void *T_CCI_BFILE;
 
 typedef void *T_CCI_CFILE;
@@ -926,19 +949,36 @@ extern "C"
   extern int cci_get_param_info (int req_handle, T_CCI_PARAM_INFO ** param, T_CCI_ERROR * err_buf);
   extern int cci_param_info_free (T_CCI_PARAM_INFO * param);
 
+  /* BLOB/CLOB: before PROTOCOL_V13 the broker's external-file LOB, as in 11.4. From PROTOCOL_V13 an internal LOB:
+   * a new value is kept by the client and uploaded when it is bound; a fetched one is read from the server. */
+  extern int cci_blob_new (int con_h_id, T_CCI_BLOB * blob, T_CCI_ERROR * err_buf);
+  extern long long cci_blob_size (T_CCI_BLOB blob);
+  extern int cci_blob_write (int con_h_id, T_CCI_BLOB blob,
+			     long long start_pos, int length, const char *buf, T_CCI_ERROR * err_buf);
+  extern int cci_blob_read (int con_h_id, T_CCI_BLOB blob,
+			    long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf);
+  extern int cci_blob_free (T_CCI_BLOB blob);
+  extern int cci_clob_new (int con_h_id, T_CCI_CLOB * clob, T_CCI_ERROR * err_buf);
+  extern long long cci_clob_size (T_CCI_CLOB clob);
+  extern int cci_clob_write (int con_h_id, T_CCI_CLOB clob,
+			     long long start_pos, int length, const char *buf, T_CCI_ERROR * err_buf);
+  extern int cci_clob_read (int con_h_id, T_CCI_CLOB clob,
+			    long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf);
+  extern int cci_clob_free (T_CCI_CLOB clob);
+  /* BFILE/CFILE: PROTOCOL_V13 or later only (CAS_ER_VERSION before) */
   extern int cci_bfile_new (int con_h_id, T_CCI_BFILE * bfile, T_CCI_ERROR * err_buf);
   extern long long cci_bfile_size (T_CCI_BFILE bfile);
   extern int cci_bfile_write (int con_h_id, T_CCI_BFILE bfile,
-			     long long start_pos, int length, const char *buf, T_CCI_ERROR * err_buf);
+			      long long start_pos, int length, const char *buf, T_CCI_ERROR * err_buf);
   extern int cci_bfile_read (int con_h_id, T_CCI_BFILE bfile,
-			    long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf);
+			     long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf);
   extern int cci_bfile_free (T_CCI_BFILE bfile);
   extern int cci_cfile_new (int con_h_id, T_CCI_CFILE * cfile, T_CCI_ERROR * err_buf);
   extern long long cci_cfile_size (T_CCI_CFILE cfile);
   extern int cci_cfile_write (int con_h_id, T_CCI_CFILE cfile,
-			     long long start_pos, int length, const char *buf, T_CCI_ERROR * err_buf);
+			      long long start_pos, int length, const char *buf, T_CCI_ERROR * err_buf);
   extern int cci_cfile_read (int con_h_id, T_CCI_CFILE cfile,
-			    long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf);
+			     long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf);
   extern int cci_cfile_free (T_CCI_CFILE cfile);
   extern int cci_get_dbms_type (int con_h_id);
   extern int cci_register_out_param (int req_h_id, int index);
@@ -995,6 +1035,42 @@ extern "C"
 				    char *attr_name, char flag, T_CCI_ERROR * err_buf);
   extern int cci_is_shard (int con_h_id, T_CCI_ERROR * err_buf);
   extern int cci_get_cas_info (int mapped_conn_id, char *info_buf, int buf_length, T_CCI_ERROR * err_buf);
+
+  /* flags of cci_stream_read_open () / cci_stream_read (), and of what they report */
+#define CCI_STREAM_RELEASE_AT_EOF	0x01	/* cci_stream_read_open (), cci_stream_read () */
+#define CCI_STREAM_EOF			0x01	/* reply */
+#define CCI_STREAM_RELEASED		0x02	/* reply: the handle is gone */
+
+  extern int cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int config_len,
+			      T_CCI_ERROR * err_buf);
+  /* data_length: the value's bytes, -1 when not known yet (BLOB and CLOB alike; CCI derives the bit length) */
+  extern int cci_stream_init_internal_lob (int mapped_conn_id, T_CCI_U_TYPE lob_type, long long data_length,
+					   T_CCI_ERROR * err_buf);
+  extern int cci_stream_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf);
+  extern int cci_stream_end_result (int mapped_conn_id, long long *result, T_CCI_ERROR * err_buf);
+  extern int cci_stream_end (int mapped_conn_id, T_CCI_ERROR * err_buf);
+  extern int cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf);
+  extern int cci_stream_read_open (int mapped_conn_id, int stream_kind, const char *config, int config_len,
+				   int first_max, char flags, long long *handle, char *buf, int *nread,
+				   char *reply_flags, T_CCI_ERROR * err_buf);
+  extern int cci_stream_read (int mapped_conn_id, long long handle, char *buf, int max, char flags, int *nread,
+			      char *reply_flags, T_CCI_ERROR * err_buf);
+  extern int cci_stream_release (int mapped_conn_id, long long handle, T_CCI_ERROR * err_buf);
+  /* The upload belongs to the binding: re-binding the index or closing the statement before an execute releases it,
+   * unless another statement of the connection binds the same token.
+   * data_length: the bytes sent. */
+  extern int cci_bind_internal_lob_upload (int mapped_stmt_id, int index, T_CCI_U_TYPE lob_type,
+					   long long token, long long data_length);
+
+  /* Internal LOB read streaming.  A BLOB/CLOB column of an internal LOB is fetched as a locator plus the value's
+   * byte length (cci_get_data with CCI_A_TYPE_INTERNAL_LOB); the payload is then pulled in bounded chunks so a
+   * multi-gigabyte value never has to sit in client memory.  The reads are a download of stream kind 4
+   * (cci_stream_read_open ()); read returns 0 bytes at the end, and close releases a handle still open. */
+  extern int cci_internal_lob_open (int mapped_conn_id, const char *locator, int locator_len,
+				    long long start_offset, long long *token, T_CCI_ERROR * err_buf);
+  extern int cci_internal_lob_read (int mapped_conn_id, long long token, char *buf, int size, int *nread,
+				    T_CCI_ERROR * err_buf);
+  extern int cci_internal_lob_close (int mapped_conn_id, long long token, T_CCI_ERROR * err_buf);
 
 #ifdef __cplusplus
 }

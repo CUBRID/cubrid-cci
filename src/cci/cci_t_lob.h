@@ -67,11 +67,48 @@ typedef struct
   char *handle;
 } T_LOB;
 
+/* the value an internal LOB handle (T_INTERNAL_LOB_HANDLE) holds */
+typedef enum
+{
+  INTERNAL_LOB_HELD,		/* made by cci_blob_new: the content, uploaded when bound */
+  INTERNAL_LOB_REF,		/* fetched: the locator, read from the server */
+  INTERNAL_LOB_INLINE		/* fetched: the content itself (a value with no storage) */
+} T_INTERNAL_LOB_STATE;
+
+/* What cci_blob_new on PROTOCOL_V13 and a fetch of an internal BLOB/CLOB give the application. The first member is
+ * where T_LOB has its LOB type; this one has a type no T_LOB has, so one T_CCI_BLOB can point at either. */
+typedef struct
+{
+  T_CCI_U_TYPE upload_type;	/* CCI_U_TYPE_INTERNAL_BLOB/CLOB_UPLOAD: what the value goes up as when bound */
+  T_INTERNAL_LOB_STATE state;
+  INT64 length;			/* bytes */
+  INT64 id;			/* unique in the process: owner mark of a connection's read slot */
+  char *bytes;			/* HELD: the content up to INTERNAL_LOB_MEM_MAX; INLINE: the content; REF: the locator */
+  int bytes_size;		/* HELD: allocated; INLINE, REF: used */
+  int spill_fd;			/* HELD past INTERNAL_LOB_MEM_MAX: the whole content in an unlinked temp file; else -1 */
+  int read_con_id;		/* REF: the connection that read it last, 0 if none */
+} T_INTERNAL_LOB_HANDLE;
+
+#define INTERNAL_LOB_MEM_MAX (1024 * 1024)
+#define INTERNAL_LOB_MAX_LENGTH ((INT64) 1 << 32)
+
+#define IS_INTERNAL_LOB_HANDLE(p) \
+  (((T_LOB *) (p))->type == CCI_U_TYPE_INTERNAL_BLOB_UPLOAD || ((T_LOB *) (p))->type == CCI_U_TYPE_INTERNAL_CLOB_UPLOAD)
+/* CCI_U_TYPE_BLOB/CLOB */
+#define INTERNAL_LOB_TYPE(lob) \
+  (((lob)->upload_type == CCI_U_TYPE_INTERNAL_BLOB_UPLOAD) ? CCI_U_TYPE_BLOB : CCI_U_TYPE_CLOB)
+
 /************************************************************************
  * EXPORTED FUNCTION PROTOTYPES						*
  ************************************************************************/
 extern INT64 t_lob_get_size (char *pack_bytes);
 extern void t_lob_set_size (T_LOB * lob, INT64 new_size);
+
+extern int t_internal_lob_new (T_CCI_U_TYPE type, T_INTERNAL_LOB_HANDLE ** lob);
+extern int t_internal_lob_from_fetch (T_CCI_U_TYPE type, T_CCI_INTERNAL_LOB * fetched, T_INTERNAL_LOB_HANDLE ** lob);
+extern int t_internal_lob_write (T_INTERNAL_LOB_HANDLE * lob, INT64 pos, int length, const char *buf);
+extern int t_internal_lob_read (T_INTERNAL_LOB_HANDLE * lob, INT64 pos, int length, char *buf);
+extern void t_internal_lob_free (T_INTERNAL_LOB_HANDLE * lob);
 
 /************************************************************************
  * EXPORTED VARIABLES							*

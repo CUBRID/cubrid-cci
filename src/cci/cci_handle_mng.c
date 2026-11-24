@@ -420,6 +420,8 @@ hm_pool_restore_used_statements (T_CON_HANDLE * connection)
     {
       int statement = r->req_handle_index;
 
+      /* the binding goes with the returned statement: release uploads it bound but never executed */
+      qe_discard_unsent_uploads (connection, r, -1);
       req_handle_content_free_for_pool (r);
       r = (T_REQ_HANDLE *) r->next;
       hm_pool_move_node_from_use_to_lru (connection, statement);
@@ -966,6 +968,8 @@ req_handle_content_free (T_REQ_HANDLE * req_handle, int reuse)
       qe_bind_value_free (req_handle);
       FREE_MEM (req_handle->bind_mode);
       FREE_MEM (req_handle->bind_value);
+      FREE_MEM (req_handle->unsent_uploads);
+      FREE_MEM (req_handle->bound_uploads);
     }
   req_handle->valid = 0;
 }
@@ -1182,6 +1186,14 @@ hm_broker_reconnect_when_server_down (T_CON_HANDLE * con_handle)
   char f = con_handle->broker_info[BROKER_INFO_FUNCTION_FLAG];
 
   return (f & BROKER_RECONNECT_WHEN_SERVER_DOWN) == BROKER_RECONNECT_WHEN_SERVER_DOWN;
+}
+
+/* PROTOCOL_V13 brought BLOB/CLOB (internal LOB) with their wire format and the stream requests (45-53); an older
+ * broker's BLOB/CLOB (the same type numbers) is an external-file LOB and it has no BFILE/CFILE. */
+bool
+hm_broker_support_internal_lob (T_CON_HANDLE * con_handle)
+{
+  return hm_broker_understand_the_protocol (hm_get_broker_version (con_handle), PROTOCOL_V13);
 }
 
 void
@@ -1436,6 +1448,15 @@ con_handle_content_free (T_CON_HANDLE * con_handle)
   FREE_MEM (con_handle->req_handle_table);
   FREE_MEM (con_handle->deferred_close_handle_list);
   FREE_MEM (con_handle->last_insert_id);
+
+  while (con_handle->lob_readers != NULL)
+    {
+      T_INTERNAL_LOB_READER *reader = con_handle->lob_readers;
+
+      con_handle->lob_readers = reader->next;
+      FREE_MEM (reader->chunk);
+      FREE_MEM (reader);
+    }
 
   if (con_handle->stmt_pool != NULL)
     {
