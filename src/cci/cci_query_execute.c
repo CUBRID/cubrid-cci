@@ -7421,39 +7421,6 @@ get_charset_type (char type)
   return charset;
 }
 
-int
-qe_stream_send_data (T_CON_HANDLE * con_handle, const char *data, int data_len, T_CCI_ERROR * err_buf)
-{
-  T_NET_BUF net_buf;
-  char func_code = CAS_FC_STREAM_SEND_DATA;
-  int err_code;
-  char *result_msg = NULL;
-  int result_msg_size;
-
-  net_buf_init (&net_buf);
-  net_buf_cp_str (&net_buf, &func_code, 1);
-
-  ADD_ARG_BYTES (&net_buf, data, data_len);
-  if (net_buf.err_code < 0)
-    {
-      err_code = net_buf.err_code;
-      net_buf_clear (&net_buf);
-      return err_code;
-    }
-
-  err_code = net_send_msg (con_handle, net_buf.data, net_buf.data_size);
-  net_buf_clear (&net_buf);
-  if (err_code < 0)
-    {
-      return err_code;
-    }
-
-  err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
-  FREE_MEM (result_msg);
-
-  return err_code;
-}
-
 /* send a stream request already in net_buf and take the reply, which starts with the result code */
 static int
 qe_stream_request (T_CON_HANDLE * con_handle, T_NET_BUF * net_buf, char **result_msg, int *result_msg_size,
@@ -7601,6 +7568,19 @@ qe_stream_end (T_CON_HANDLE * con_handle, long long *result, T_CCI_ERROR * err_b
   FREE_MEM (result_msg);
 
   return err_code;
+}
+
+int
+qe_stream_send_data (T_CON_HANDLE * con_handle, const char *data, int data_len, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_SEND_DATA;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_BYTES (&net_buf, data, data_len);
+
+  return qe_stream_request (con_handle, &net_buf, NULL, NULL, err_buf);
 }
 
 /* the last chunk and END in one request */
