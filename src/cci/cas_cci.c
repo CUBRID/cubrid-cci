@@ -116,6 +116,9 @@ int wsa_initialize ();
 #define NEED_TO_RECONNECT(CON,ERR) \
   (IS_ER_COMMUNICATION(ERR) || !hm_broker_reconnect_when_server_down(CON))
 
+/* the bytes a stream request may carry: with its head and net_buf's 1 KiB growth step, its size stays an int */
+#define STREAM_REQUEST_ARG_MAX (INT_MAX - 2048)
+
 /* default value of each datesource property */
 #define CCI_DS_POOL_SIZE_DEFAULT 			10
 #define CCI_DS_MAX_WAIT_DEFAULT 			1000
@@ -6741,7 +6744,7 @@ cci_stream_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_
   int error = CCI_ER_NO_ERROR;
 
   reset_error_buffer (err_buf);
-  if (data == NULL || data_len <= 0)
+  if (data == NULL || data_len <= 0 || data_len > STREAM_REQUEST_ARG_MAX)
     {
       set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
       return CCI_ER_INVALID_ARGS;
@@ -6832,7 +6835,8 @@ cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int co
   int error = CCI_ER_NO_ERROR;
 
   reset_error_buffer (err_buf);
-  if (config_len < 0 || (config_len > 0 && config == NULL) || data_len < 0 || (data_len > 0 && data == NULL))
+  if (config_len < 0 || (config_len > 0 && config == NULL) || data_len < 0 || (data_len > 0 && data == NULL)
+      || data_len > STREAM_REQUEST_ARG_MAX - config_len)
     {
       set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
       return CCI_ER_INVALID_ARGS;
@@ -6898,7 +6902,7 @@ cci_stream_send_final (int mapped_conn_id, const char *data, int data_len, long 
   int error = CCI_ER_NO_ERROR;
 
   reset_error_buffer (err_buf);
-  if (data_len < 0 || (data_len > 0 && data == NULL))
+  if (data_len < 0 || (data_len > 0 && data == NULL) || data_len > STREAM_REQUEST_ARG_MAX)
     {
       set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
       return CCI_ER_INVALID_ARGS;
@@ -6940,8 +6944,8 @@ cci_stream_read_open (int mapped_conn_id, int stream_kind, const char *config, i
   int error = CCI_ER_NO_ERROR;
 
   reset_error_buffer (err_buf);
-  if (config_len < 0 || (config_len > 0 && config == NULL) || first_max < 0 || (first_max > 0 && buf == NULL)
-      || handle == NULL || nread == NULL || reply_flags == NULL)
+  if (config_len < 0 || (config_len > 0 && config == NULL) || config_len > STREAM_REQUEST_ARG_MAX || first_max < 0
+      || (first_max > 0 && buf == NULL) || handle == NULL || nread == NULL || reply_flags == NULL)
     {
       set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
       return CCI_ER_INVALID_ARGS;
