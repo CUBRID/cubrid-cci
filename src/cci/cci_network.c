@@ -779,6 +779,7 @@ net_recv_msg_timeout (T_CON_HANDLE * con_handle, char **msg, int *msg_size, T_CC
   if (con_handle->cas_info[CAS_INFO_STATUS] == CAS_INFO_STATUS_INACTIVE)
     {
       con_handle->con_status = CCI_CON_STATUS_OUT_TRAN;
+      hm_stream_handle_clear (con_handle);
     }
   else
     {

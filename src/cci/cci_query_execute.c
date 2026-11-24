@@ -7661,6 +7661,10 @@ qe_stream_read_open (T_CON_HANDLE * con_handle, int stream_kind, const char *con
 	}
     }
   FREE_MEM (result_msg);
+  if (err_code >= 0 && *handle != 0 && !(*reply_flags & CAS_STREAM_FLAG_RELEASED))
+    {
+      hm_stream_handle_add (con_handle, *handle);
+    }
 
   return err_code;
 }
@@ -7700,6 +7704,10 @@ qe_stream_read (T_CON_HANDLE * con_handle, long long handle, char *buf, int max,
 	}
     }
   FREE_MEM (result_msg);
+  if (err_code >= 0 && (*reply_flags & CAS_STREAM_FLAG_RELEASED))
+    {
+      hm_stream_handle_remove (con_handle, handle);
+    }
 
   return err_code;
 }
@@ -7710,11 +7718,18 @@ qe_stream_release (T_CON_HANDLE * con_handle, long long handle, T_CCI_ERROR * er
   T_NET_BUF net_buf;
   char func_code = CAS_FC_STREAM_RELEASE;
   char autocommit_flag = (char) con_handle->autocommit_mode;
+  int err_code;
 
   net_buf_init (&net_buf);
   net_buf_cp_str (&net_buf, &func_code, 1);
   ADD_ARG_BIGINT (&net_buf, (INT64) handle);
   ADD_ARG_BYTES (&net_buf, &autocommit_flag, 1);
 
-  return qe_stream_request (con_handle, &net_buf, NULL, NULL, err_buf);
+  err_code = qe_stream_request (con_handle, &net_buf, NULL, NULL, err_buf);
+  if (err_code >= 0)
+    {
+      hm_stream_handle_remove (con_handle, handle);
+    }
+
+  return err_code;
 }

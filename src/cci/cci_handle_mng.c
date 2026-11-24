@@ -1545,6 +1545,58 @@ hm_force_close_connection (T_CON_HANDLE * con_handle)
   con_handle->force_failback = 0;
 }
 
+/* a download handle the CAS now holds, which keeps the transaction open until its release */
+void
+hm_stream_handle_add (T_CON_HANDLE * con_handle, long long handle)
+{
+  if (con_handle->stream_handle_count < CON_STREAM_HANDLE_SLOTS)
+    {
+      con_handle->stream_handles[con_handle->stream_handle_count++] = handle;
+    }
+  else
+    {
+      con_handle->stream_handle_overflow = true;
+    }
+}
+
+/* a handle the CAS released; one not listed, or released already, changes nothing */
+void
+hm_stream_handle_remove (T_CON_HANDLE * con_handle, long long handle)
+{
+  int i;
+
+  for (i = 0; i < con_handle->stream_handle_count; i++)
+    {
+      if (con_handle->stream_handles[i] == handle)
+	{
+	  con_handle->stream_handles[i] = con_handle->stream_handles[--con_handle->stream_handle_count];
+	  return;
+	}
+    }
+}
+
+/* the transaction ended or the CAS is a new one: it holds no download handle */
+void
+hm_stream_handle_clear (T_CON_HANDLE * con_handle)
+{
+  con_handle->stream_handle_count = 0;
+  con_handle->stream_handle_overflow = false;
+}
+
+/* An open upload (the CAS reports it from PROTOCOL_V13) or a download handle holds the transaction, and the CAS
+ * ends it when they end: CCI sends no COMMIT or ROLLBACK of its own meanwhile. */
+bool
+hm_stream_holds_tran (T_CON_HANDLE * con_handle)
+{
+  if (con_handle->stream_handle_count > 0 || con_handle->stream_handle_overflow)
+    {
+      return true;
+    }
+
+  return hm_broker_understand_the_protocol (hm_get_broker_version (con_handle), PROTOCOL_V13)
+    && (con_handle->cas_info[CAS_INFO_ADDITIONAL_FLAG] & CAS_INFO_FLAG_MASK_STREAM_OPEN);
+}
+
 void
 hm_ssl_free (T_CON_HANDLE * con_handle)
 {

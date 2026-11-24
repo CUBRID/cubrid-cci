@@ -100,6 +100,13 @@ extern "C"
 #define CAS_INFO_FLAG_MASK_AUTOCOMMIT		0x01
 #define CAS_INFO_FLAG_MASK_FORCE_OUT_TRAN       0x02
 #define CAS_INFO_FLAG_MASK_NEW_SESSION_ID       0x04
+/* A stream session is open on this connection, so the statement that opened it
+ * is not finished and its auto-commit is owed to END. A driver that commits
+ * from its own side reads this and holds that commit back; the CAS pays it.
+ *
+ * Only a PROTOCOL_V13 client may read it: an earlier server leaves every bit
+ * above the three older masks at 1. */
+#define CAS_INFO_FLAG_MASK_STREAM_OPEN          0x08
 
 /* The flags byte of the stream requests and replies (the engine's cas_protocol.h). INIT, READ_OPEN and READ always
  * carry it; on SEND_DATA it is optional. */

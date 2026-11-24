@@ -2260,7 +2260,8 @@ cci_close_req_handle (int mapped_stmt_id)
       /* free req_handle resources */
       req_handle_content_free_for_pool (req_handle);
 
-      if (con_handle->autocommit_mode == CCI_AUTOCOMMIT_TRUE && IS_IN_TRAN (con_handle))
+      if (con_handle->autocommit_mode == CCI_AUTOCOMMIT_TRUE && IS_IN_TRAN (con_handle)
+	  && !hm_stream_holds_tran (con_handle))
 	{
 	  T_CCI_ERROR err_buf;
 	  qe_end_tran (con_handle, CCI_TRAN_ROLLBACK, &err_buf);
@@ -5006,6 +5007,7 @@ cas_connect_internal (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf, int *con
   CLOSE_SOCKET (con_handle->sock_fd);
   con_handle->sock_fd = INVALID_SOCKET;
   con_handle->con_status = CCI_CON_STATUS_OUT_TRAN;
+  hm_stream_handle_clear (con_handle);
 
   if (con_handle->alter_host_count == 0)
     {
