@@ -6991,17 +6991,3 @@ cci_stream_release (int mapped_conn_id, long long handle, T_CCI_ERROR * err_buf)
 
   return error;
 }
-
-/* Back-compat: COPY was the first consumer of the stream transport.
- * These forward to the generalized cci_stream_* entry points. */
-int
-cci_copy_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf)
-{
-  return cci_stream_send_data (mapped_conn_id, data, data_len, err_buf);
-}
-
-int
-cci_copy_end (int mapped_conn_id, T_CCI_ERROR * err_buf)
-{
-  return cci_stream_end (mapped_conn_id, err_buf);
-}

@@ -225,11 +225,6 @@ extern "C"
   };
   typedef enum t_cas_func_code T_CAS_FUNC_CODE;
 
-/* Compatibility aliases: COPY was the first consumer of the stream transport.
- * The function-code values are unchanged (wire-compatible). */
-#define CAS_FC_COPY_SEND_DATA CAS_FC_STREAM_SEND_DATA
-#define CAS_FC_COPY_END       CAS_FC_STREAM_END
-
   enum t_cas_protocol
   {
     PROTOCOL_V0 = 0,		/* old protocol */

@@ -117,8 +117,6 @@ EXPORTS
 	cci_stream_read_open
 	cci_stream_read
 	cci_stream_release
-	cci_copy_send_data
-	cci_copy_end
 	
 	cci_log_get
 	cci_log_finalize
