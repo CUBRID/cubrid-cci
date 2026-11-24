@@ -7675,8 +7675,9 @@ qe_stream_read_open (T_CON_HANDLE * con_handle, int stream_kind, const char *con
 	{
 	  NET_STR_TO_BIGINT (value, result_msg + NET_SIZE_INT);
 	  *handle = (long long) value;
-	  err_code = qe_stream_take_read (result_msg + NET_SIZE_INT + NET_SIZE_BIGINT, result_msg + result_msg_size, buf,
-					  first_max, nread, reply_flags);
+	  err_code =
+	    qe_stream_take_read (result_msg + NET_SIZE_INT + NET_SIZE_BIGINT, result_msg + result_msg_size, buf,
+				 first_max, nread, reply_flags);
 	}
     }
   FREE_MEM (result_msg);
