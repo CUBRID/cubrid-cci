@@ -6850,8 +6850,28 @@ cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int co
     }
   reset_error_buffer (&(con_handle->err_buf));
 
+  if (IS_OUT_TRAN (con_handle) && IS_FORCE_FAILBACK (con_handle) && !IS_INVALID_SOCKET (con_handle->sock_fd))
+    {
+      hm_force_close_connection (con_handle);
+    }
+
   error = qe_stream_init (con_handle, stream_kind, config, config_len, flags, data, data_len, count,
 			  &(con_handle->err_buf));
+  while (IS_OUT_TRAN (con_handle) && IS_ER_TO_RECONNECT (error, con_handle->err_buf.err_code))
+    {
+      if (NEED_TO_RECONNECT (con_handle, error))
+	{
+	  /* Finally, reset_connect will return ER_TIMEOUT */
+	  error = reset_connect (con_handle, NULL, &(con_handle->err_buf));
+	  if (error != CCI_ER_NO_ERROR)
+	    {
+	      break;
+	    }
+	}
+
+      error = qe_stream_init (con_handle, stream_kind, config, config_len, flags, data, data_len, count,
+			      &(con_handle->err_buf));
+    }
 
   if (error < 0)
     {
@@ -6959,8 +6979,28 @@ cci_stream_read_open (int mapped_conn_id, int stream_kind, const char *config, i
     }
   reset_error_buffer (&(con_handle->err_buf));
 
+  if (IS_OUT_TRAN (con_handle) && IS_FORCE_FAILBACK (con_handle) && !IS_INVALID_SOCKET (con_handle->sock_fd))
+    {
+      hm_force_close_connection (con_handle);
+    }
+
   error = qe_stream_read_open (con_handle, stream_kind, config, config_len, first_max, flags, handle, buf, nread,
 			       reply_flags, &(con_handle->err_buf));
+  while (IS_OUT_TRAN (con_handle) && IS_ER_TO_RECONNECT (error, con_handle->err_buf.err_code))
+    {
+      if (NEED_TO_RECONNECT (con_handle, error))
+	{
+	  /* Finally, reset_connect will return ER_TIMEOUT */
+	  error = reset_connect (con_handle, NULL, &(con_handle->err_buf));
+	  if (error != CCI_ER_NO_ERROR)
+	    {
+	      break;
+	    }
+	}
+
+      error = qe_stream_read_open (con_handle, stream_kind, config, config_len, first_max, flags, handle, buf, nread,
+				   reply_flags, &(con_handle->err_buf));
+    }
 
   if (error < 0)
     {
@@ -7023,6 +7063,12 @@ cci_stream_release (int mapped_conn_id, long long handle, T_CCI_ERROR * err_buf)
   reset_error_buffer (&(con_handle->err_buf));
 
   error = qe_stream_release (con_handle, handle, &(con_handle->err_buf));
+  /* out of a transaction the CAS holds no download handle, so a lost connection left nothing to release */
+  if (IS_OUT_TRAN (con_handle) && IS_ER_TO_RECONNECT (error, con_handle->err_buf.err_code))
+    {
+      reset_error_buffer (&(con_handle->err_buf));
+      error = CCI_ER_NO_ERROR;
+    }
 
   if (error < 0)
     {
