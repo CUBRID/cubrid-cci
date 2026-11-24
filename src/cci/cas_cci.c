@@ -4622,6 +4622,9 @@ cci_get_err_msg_internal (int error)
       return "The server certificate could not be verified (check sslca, and the certificate's validity period and "
 	"subject alternative names)";
 
+    case CCI_ER_NOT_IMPLEMENTED:
+      return "Attempt to use a not supported service";
+
     case CAS_ER_INTERNAL:
       return "Not used";
 
@@ -4702,6 +4705,9 @@ cci_get_err_msg_internal (int error)
 
     case CAS_ER_HOLDABLE_NOT_ALLOWED:
       return "Holdable results may not be updatable or sensitive";
+
+    case CAS_ER_NOT_IMPLEMENTED:
+      return "Attempt to use a not supported service";
 
     case CAS_ER_MAX_CLIENT_EXCEEDED:
       return "Proxy refused client connection. max clients exceeded";
@@ -6751,6 +6757,10 @@ cci_stream_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_
 
   error = qe_stream_send_data (con_handle, data, data_len, &(con_handle->err_buf));
 
+  if (error < 0)
+    {
+      set_error_buffer (&(con_handle->err_buf), error, NULL);
+    }
   get_last_error (con_handle, err_buf);
   con_handle->used = false;
 
@@ -6784,6 +6794,10 @@ cci_stream_end_result (int mapped_conn_id, long long *result, T_CCI_ERROR * err_
 
   error = qe_stream_end (con_handle, result, &(con_handle->err_buf));
 
+  if (error < 0)
+    {
+      set_error_buffer (&(con_handle->err_buf), error, NULL);
+    }
   get_last_error (con_handle, err_buf);
   con_handle->used = false;
 
@@ -6835,6 +6849,10 @@ cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int co
   error = qe_stream_init (con_handle, stream_kind, config, config_len, flags, data, data_len, count,
 			  &(con_handle->err_buf));
 
+  if (error < 0)
+    {
+      set_error_buffer (&(con_handle->err_buf), error, NULL);
+    }
   get_last_error (con_handle, err_buf);
   con_handle->used = false;
 
@@ -6859,6 +6877,10 @@ cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf)
 
   error = qe_stream_abort (con_handle, &(con_handle->err_buf));
 
+  if (error < 0)
+    {
+      set_error_buffer (&(con_handle->err_buf), error, NULL);
+    }
   get_last_error (con_handle, err_buf);
   con_handle->used = false;
 
@@ -6892,6 +6914,10 @@ cci_stream_send_final (int mapped_conn_id, const char *data, int data_len, long 
 
   error = qe_stream_send_final (con_handle, data, data_len, count, &(con_handle->err_buf));
 
+  if (error < 0)
+    {
+      set_error_buffer (&(con_handle->err_buf), error, NULL);
+    }
   get_last_error (con_handle, err_buf);
   con_handle->used = false;
 
@@ -6932,6 +6958,10 @@ cci_stream_read_open (int mapped_conn_id, int stream_kind, const char *config, i
   error = qe_stream_read_open (con_handle, stream_kind, config, config_len, first_max, flags, handle, buf, nread,
 			       reply_flags, &(con_handle->err_buf));
 
+  if (error < 0)
+    {
+      set_error_buffer (&(con_handle->err_buf), error, NULL);
+    }
   get_last_error (con_handle, err_buf);
   con_handle->used = false;
 
@@ -6962,6 +6992,10 @@ cci_stream_read (int mapped_conn_id, long long handle, char *buf, int max, char 
 
   error = qe_stream_read (con_handle, handle, buf, max, flags, nread, reply_flags, &(con_handle->err_buf));
 
+  if (error < 0)
+    {
+      set_error_buffer (&(con_handle->err_buf), error, NULL);
+    }
   get_last_error (con_handle, err_buf);
   con_handle->used = false;
 
@@ -6986,6 +7020,10 @@ cci_stream_release (int mapped_conn_id, long long handle, T_CCI_ERROR * err_buf)
 
   error = qe_stream_release (con_handle, handle, &(con_handle->err_buf));
 
+  if (error < 0)
+    {
+      set_error_buffer (&(con_handle->err_buf), error, NULL);
+    }
   get_last_error (con_handle, err_buf);
   con_handle->used = false;
 
