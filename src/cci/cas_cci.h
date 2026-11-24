@@ -995,9 +995,16 @@ extern "C"
   extern int cci_get_cas_info (int mapped_conn_id, char *info_buf, int buf_length, T_CCI_ERROR * err_buf);
 
   /* Stream calls. A config starts with the kind's version, a big-endian int; CCI reads none of it. A refusal by the
-   * server returns CCI_ER_DBMS with err_buf->err_code: -1218 no stream is open or the handle does not resolve,
-   * -1219 the kind or the config version is not supported (the message names the highest version), -1220 the
-   * request is out of order, -1217 any other refusal. A kind may also refuse with an error code of its own. */
+   * server returns CCI_ER_DBMS with err_buf->err_code, and the message gives the reason:
+   *   -1217  any other failure of the stream
+   *   -1218  no stream is open, or the handle does not resolve
+   *   -1219  the kind is unknown, is opened in the other direction or only by its SQL statement, or the config
+   *          version is above the highest one the server takes (the message names it)
+   *   -1220  the request is out of order or malformed (a config with no version or a version below 1), or the
+   *          transaction already holds the most download handles it may (1024)
+   * A kind may also refuse with an error code of its own. A broker older than PROTOCOL_V13 gets no request: the call
+   * returns CCI_ER_NOT_IMPLEMENTED and the connection stays usable. A SHARD broker carries no stream and returns
+   * CAS_ER_NOT_IMPLEMENTED. */
 
   /* flags of the stream calls, and of what cci_stream_read_open () / cci_stream_read () report */
 #define CCI_STREAM_FINAL		0x01	/* cci_stream_init (): data is the whole value */
