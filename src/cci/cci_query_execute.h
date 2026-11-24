@@ -498,7 +498,7 @@ extern int qe_lob_read (T_CON_HANDLE * con_handle, T_LOB * lob, INT64 start_pos,
 			T_CCI_ERROR * err_buf);
 
 extern int qe_stream_send_data (T_CON_HANDLE * con_handle, const char *data, int data_len, T_CCI_ERROR * err_buf);
-extern int qe_stream_end (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf);
+extern int qe_stream_end (T_CON_HANDLE * con_handle, long long *result, T_CCI_ERROR * err_buf);
 extern int qe_stream_init (T_CON_HANDLE * con_handle, int stream_kind, const char *config, int config_len,
 			   char flags, const char *data, int data_len, long long *count, T_CCI_ERROR * err_buf);
 extern int qe_stream_abort (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf);

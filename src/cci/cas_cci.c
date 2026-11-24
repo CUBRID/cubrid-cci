@@ -6757,13 +6757,22 @@ cci_stream_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_
   return error;
 }
 
+/*
+ * cci_stream_end_result () - End the stream and take the binding's 64-bit value
+ *   result(out): the rows COPY loaded, or what the kind defines
+ */
 int
-cci_stream_end (int mapped_conn_id, T_CCI_ERROR * err_buf)
+cci_stream_end_result (int mapped_conn_id, long long *result, T_CCI_ERROR * err_buf)
 {
   T_CON_HANDLE *con_handle = NULL;
   int error = CCI_ER_NO_ERROR;
 
   reset_error_buffer (err_buf);
+  if (result == NULL)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
 
   error = hm_get_connection (mapped_conn_id, &con_handle);
   if (error != CCI_ER_NO_ERROR)
@@ -6773,7 +6782,7 @@ cci_stream_end (int mapped_conn_id, T_CCI_ERROR * err_buf)
     }
   reset_error_buffer (&(con_handle->err_buf));
 
-  error = qe_stream_end (con_handle, &(con_handle->err_buf));
+  error = qe_stream_end (con_handle, result, &(con_handle->err_buf));
 
   get_last_error (con_handle, err_buf);
   con_handle->used = false;
@@ -6781,11 +6790,25 @@ cci_stream_end (int mapped_conn_id, T_CCI_ERROR * err_buf)
   return error;
 }
 
+/* cci_stream_end_result () as an int: a value above INT_MAX comes back as INT_MAX */
+int
+cci_stream_end (int mapped_conn_id, T_CCI_ERROR * err_buf)
+{
+  long long result = 0;
+  int error = cci_stream_end_result (mapped_conn_id, &result, err_buf);
+
+  if (error < 0)
+    {
+      return error;
+    }
+  return (result > INT_MAX) ? INT_MAX : (int) result;
+}
+
 /*
  * cci_stream_init () - Open a stream of a kind whose client half is the driver
  *   config, config_len: the kind's config, starting with its version (a big-endian int)
  *   flags, data, data_len: CAS_STREAM_FLAG_FINAL with the whole value, or 0 with a first chunk or none
- *   count(out): with CAS_STREAM_FLAG_FINAL, what cci_stream_end () would have returned
+ *   count(out): with CAS_STREAM_FLAG_FINAL, what cci_stream_end_result () would have returned in result
  */
 int
 cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int config_len, char flags,
@@ -6844,7 +6867,7 @@ cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf)
 
 /*
  * cci_stream_send_final () - Send the last chunk and end the stream in one request
- *   count(out): what cci_stream_end () would have returned, at full width
+ *   count(out): what cci_stream_end_result () would have returned in result
  */
 int
 cci_stream_send_final (int mapped_conn_id, const char *data, int data_len, long long *count, T_CCI_ERROR * err_buf)
