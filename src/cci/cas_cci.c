@@ -185,6 +185,11 @@ static int convert_driver_mode_to_cas_mode (int driver_mode);
 
 static int reset_connect (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, T_CCI_ERROR * err_buf);
 
+static int stream_refuse_args (T_CCI_ERROR * err_buf);
+static int stream_get_connection (int mapped_conn_id, T_CON_HANDLE ** con_handle, T_CCI_ERROR * err_buf);
+static int stream_put_connection (T_CON_HANDLE * con_handle, int error, T_CCI_ERROR * err_buf);
+static bool stream_resend_open (T_CON_HANDLE * con_handle, int *error);
+
 /************************************************************************
  * INTERFACE VARIABLES							*
  ************************************************************************/
@@ -6739,29 +6744,48 @@ cci_get_cas_info (int mapped_conn_id, char *info_buf, int buf_length, T_CCI_ERRO
   return error;
 }
 
-int
-cci_stream_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf)
+/*
+ * stream_refuse_args () - Report invalid arguments of a stream call in err_buf
+ */
+static int
+stream_refuse_args (T_CCI_ERROR * err_buf)
 {
-  T_CON_HANDLE *con_handle = NULL;
-  int error = CCI_ER_NO_ERROR;
+  reset_error_buffer (err_buf);
+  set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+  return CCI_ER_INVALID_ARGS;
+}
+
+/*
+ * stream_get_connection () - Take the connection for a stream call, with both error buffers reset
+ *   return: the error, also in err_buf, when the connection cannot be had
+ */
+static int
+stream_get_connection (int mapped_conn_id, T_CON_HANDLE ** con_handle, T_CCI_ERROR * err_buf)
+{
+  int error;
 
   reset_error_buffer (err_buf);
-  if (data == NULL || data_len <= 0 || data_len > STREAM_REQUEST_ARG_MAX)
-    {
-      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
-      return CCI_ER_INVALID_ARGS;
-    }
-
-  error = hm_get_connection (mapped_conn_id, &con_handle);
+  error = hm_get_connection (mapped_conn_id, con_handle);
   if (error != CCI_ER_NO_ERROR)
     {
       set_error_buffer (err_buf, error, NULL);
       return error;
     }
-  reset_error_buffer (&(con_handle->err_buf));
+  reset_error_buffer (&((*con_handle)->err_buf));
 
-  error = qe_stream_send_data (con_handle, data, data_len, &(con_handle->err_buf));
+  return CCI_ER_NO_ERROR;
+}
 
+/*
+ * stream_put_connection () - Give the connection back after a stream call's request
+ *   return: error
+ *   error(in): the request's error, which goes into the connection's err_buf and from there into err_buf
+ *
+ *   set_error_buffer () keeps an error already in the connection's err_buf, such as the server's refusal.
+ */
+static int
+stream_put_connection (T_CON_HANDLE * con_handle, int error, T_CCI_ERROR * err_buf)
+{
   if (error < 0)
     {
       set_error_buffer (&(con_handle->err_buf), error, NULL);
@@ -6773,43 +6797,75 @@ cci_stream_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_
 }
 
 /*
- * cci_stream_end_result () - End the stream and take the binding's 64-bit value
- *   result(out): the rows COPY loaded, or what the kind defines
+ * stream_resend_open () - Whether to send a stream open again after the error it returned
+ *   error(in/out): the open's error; reset_connect ()'s error when the reconnect fails
+ *
+ *   As in the other cci_* calls that resend out of a transaction: when the error is one a reconnect cures, the
+ *   open goes again, after reset_connect () unless the broker reconnects to the server itself.
  */
+static bool
+stream_resend_open (T_CON_HANDLE * con_handle, int *error)
+{
+  if (!IS_OUT_TRAN (con_handle) || !IS_ER_TO_RECONNECT (*error, con_handle->err_buf.err_code))
+    {
+      return false;
+    }
+  if (NEED_TO_RECONNECT (con_handle, *error))
+    {
+      /* Finally, reset_connect will return ER_TIMEOUT */
+      *error = reset_connect (con_handle, NULL, &(con_handle->err_buf));
+      if (*error != CCI_ER_NO_ERROR)
+	{
+	  return false;
+	}
+    }
+
+  return true;
+}
+
+int
+cci_stream_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  int error;
+
+  if (data == NULL || data_len <= 0 || data_len > STREAM_REQUEST_ARG_MAX)
+    {
+      return stream_refuse_args (err_buf);
+    }
+
+  error = stream_get_connection (mapped_conn_id, &con_handle, err_buf);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      return error;
+    }
+
+  error = qe_stream_send_data (con_handle, data, data_len, &(con_handle->err_buf));
+  return stream_put_connection (con_handle, error, err_buf);
+}
+
+/* cci_stream_end_result () - End the stream and take the value its kind defines */
 int
 cci_stream_end_result (int mapped_conn_id, long long *result, T_CCI_ERROR * err_buf)
 {
   T_CON_HANDLE *con_handle = NULL;
-  int error = CCI_ER_NO_ERROR;
+  int error;
 
-  reset_error_buffer (err_buf);
   if (result == NULL)
     {
-      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
-      return CCI_ER_INVALID_ARGS;
+      return stream_refuse_args (err_buf);
     }
 
-  error = hm_get_connection (mapped_conn_id, &con_handle);
+  error = stream_get_connection (mapped_conn_id, &con_handle, err_buf);
   if (error != CCI_ER_NO_ERROR)
     {
-      set_error_buffer (err_buf, error, NULL);
       return error;
     }
-  reset_error_buffer (&(con_handle->err_buf));
 
   error = qe_stream_end (con_handle, result, &(con_handle->err_buf));
-
-  if (error < 0)
-    {
-      set_error_buffer (&(con_handle->err_buf), error, NULL);
-    }
-  get_last_error (con_handle, err_buf);
-  con_handle->used = false;
-
-  return error;
+  return stream_put_connection (con_handle, error, err_buf);
 }
 
-/* cci_stream_end_result () as an int: a value above INT_MAX comes back as INT_MAX */
 int
 cci_stream_end (int mapped_conn_id, T_CCI_ERROR * err_buf)
 {
@@ -6834,83 +6890,50 @@ cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int co
 		 const char *data, int data_len, long long *count, T_CCI_ERROR * err_buf)
 {
   T_CON_HANDLE *con_handle = NULL;
-  int error = CCI_ER_NO_ERROR;
+  int error;
 
-  reset_error_buffer (err_buf);
+  /* data and config go in one request, so they share STREAM_REQUEST_ARG_MAX */
   if (config_len < 0 || (config_len > 0 && config == NULL) || data_len < 0 || (data_len > 0 && data == NULL)
       || data_len > STREAM_REQUEST_ARG_MAX - config_len)
     {
-      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
-      return CCI_ER_INVALID_ARGS;
+      return stream_refuse_args (err_buf);
     }
 
-  error = hm_get_connection (mapped_conn_id, &con_handle);
+  error = stream_get_connection (mapped_conn_id, &con_handle, err_buf);
   if (error != CCI_ER_NO_ERROR)
     {
-      set_error_buffer (err_buf, error, NULL);
       return error;
     }
-  reset_error_buffer (&(con_handle->err_buf));
 
   if (IS_OUT_TRAN (con_handle) && IS_FORCE_FAILBACK (con_handle) && !IS_INVALID_SOCKET (con_handle->sock_fd))
     {
       hm_force_close_connection (con_handle);
     }
 
-  error = qe_stream_init (con_handle, stream_kind, config, config_len, flags, data, data_len, count,
-			  &(con_handle->err_buf));
-  while (IS_OUT_TRAN (con_handle) && IS_ER_TO_RECONNECT (error, con_handle->err_buf.err_code))
+  do
     {
-      if (NEED_TO_RECONNECT (con_handle, error))
-	{
-	  /* Finally, reset_connect will return ER_TIMEOUT */
-	  error = reset_connect (con_handle, NULL, &(con_handle->err_buf));
-	  if (error != CCI_ER_NO_ERROR)
-	    {
-	      break;
-	    }
-	}
-
       error = qe_stream_init (con_handle, stream_kind, config, config_len, flags, data, data_len, count,
 			      &(con_handle->err_buf));
     }
+  while (stream_resend_open (con_handle, &error));
 
-  if (error < 0)
-    {
-      set_error_buffer (&(con_handle->err_buf), error, NULL);
-    }
-  get_last_error (con_handle, err_buf);
-  con_handle->used = false;
-
-  return error;
+  return stream_put_connection (con_handle, error, err_buf);
 }
 
 int
 cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf)
 {
   T_CON_HANDLE *con_handle = NULL;
-  int error = CCI_ER_NO_ERROR;
+  int error;
 
-  reset_error_buffer (err_buf);
-
-  error = hm_get_connection (mapped_conn_id, &con_handle);
+  error = stream_get_connection (mapped_conn_id, &con_handle, err_buf);
   if (error != CCI_ER_NO_ERROR)
     {
-      set_error_buffer (err_buf, error, NULL);
       return error;
     }
-  reset_error_buffer (&(con_handle->err_buf));
 
   error = qe_stream_abort (con_handle, &(con_handle->err_buf));
-
-  if (error < 0)
-    {
-      set_error_buffer (&(con_handle->err_buf), error, NULL);
-    }
-  get_last_error (con_handle, err_buf);
-  con_handle->used = false;
-
-  return error;
+  return stream_put_connection (con_handle, error, err_buf);
 }
 
 /*
@@ -6921,33 +6944,21 @@ int
 cci_stream_send_final (int mapped_conn_id, const char *data, int data_len, long long *count, T_CCI_ERROR * err_buf)
 {
   T_CON_HANDLE *con_handle = NULL;
-  int error = CCI_ER_NO_ERROR;
+  int error;
 
-  reset_error_buffer (err_buf);
   if (data_len < 0 || (data_len > 0 && data == NULL) || data_len > STREAM_REQUEST_ARG_MAX)
     {
-      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
-      return CCI_ER_INVALID_ARGS;
+      return stream_refuse_args (err_buf);
     }
 
-  error = hm_get_connection (mapped_conn_id, &con_handle);
+  error = stream_get_connection (mapped_conn_id, &con_handle, err_buf);
   if (error != CCI_ER_NO_ERROR)
     {
-      set_error_buffer (err_buf, error, NULL);
       return error;
     }
-  reset_error_buffer (&(con_handle->err_buf));
 
   error = qe_stream_send_final (con_handle, data, data_len, count, &(con_handle->err_buf));
-
-  if (error < 0)
-    {
-      set_error_buffer (&(con_handle->err_buf), error, NULL);
-    }
-  get_last_error (con_handle, err_buf);
-  con_handle->used = false;
-
-  return error;
+  return stream_put_connection (con_handle, error, err_buf);
 }
 
 /*
@@ -6963,55 +6974,33 @@ cci_stream_read_open (int mapped_conn_id, int stream_kind, const char *config, i
 		      char flags, long long *handle, char *buf, int *nread, char *reply_flags, T_CCI_ERROR * err_buf)
 {
   T_CON_HANDLE *con_handle = NULL;
-  int error = CCI_ER_NO_ERROR;
+  int error;
 
-  reset_error_buffer (err_buf);
   if (config_len < 0 || (config_len > 0 && config == NULL) || config_len > STREAM_REQUEST_ARG_MAX || first_max < 0
       || (first_max > 0 && buf == NULL) || handle == NULL || nread == NULL || reply_flags == NULL)
     {
-      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
-      return CCI_ER_INVALID_ARGS;
+      return stream_refuse_args (err_buf);
     }
 
-  error = hm_get_connection (mapped_conn_id, &con_handle);
+  error = stream_get_connection (mapped_conn_id, &con_handle, err_buf);
   if (error != CCI_ER_NO_ERROR)
     {
-      set_error_buffer (err_buf, error, NULL);
       return error;
     }
-  reset_error_buffer (&(con_handle->err_buf));
 
   if (IS_OUT_TRAN (con_handle) && IS_FORCE_FAILBACK (con_handle) && !IS_INVALID_SOCKET (con_handle->sock_fd))
     {
       hm_force_close_connection (con_handle);
     }
 
-  error = qe_stream_read_open (con_handle, stream_kind, config, config_len, first_max, flags, handle, buf, nread,
-			       reply_flags, &(con_handle->err_buf));
-  while (IS_OUT_TRAN (con_handle) && IS_ER_TO_RECONNECT (error, con_handle->err_buf.err_code))
+  do
     {
-      if (NEED_TO_RECONNECT (con_handle, error))
-	{
-	  /* Finally, reset_connect will return ER_TIMEOUT */
-	  error = reset_connect (con_handle, NULL, &(con_handle->err_buf));
-	  if (error != CCI_ER_NO_ERROR)
-	    {
-	      break;
-	    }
-	}
-
       error = qe_stream_read_open (con_handle, stream_kind, config, config_len, first_max, flags, handle, buf, nread,
 				   reply_flags, &(con_handle->err_buf));
     }
+  while (stream_resend_open (con_handle, &error));
 
-  if (error < 0)
-    {
-      set_error_buffer (&(con_handle->err_buf), error, NULL);
-    }
-  get_last_error (con_handle, err_buf);
-  con_handle->used = false;
-
-  return error;
+  return stream_put_connection (con_handle, error, err_buf);
 }
 
 int
@@ -7019,50 +7008,34 @@ cci_stream_read (int mapped_conn_id, long long handle, char *buf, int max, char 
 		 char *reply_flags, T_CCI_ERROR * err_buf)
 {
   T_CON_HANDLE *con_handle = NULL;
-  int error = CCI_ER_NO_ERROR;
+  int error;
 
-  reset_error_buffer (err_buf);
   if (buf == NULL || max <= 0 || nread == NULL || reply_flags == NULL)
     {
-      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
-      return CCI_ER_INVALID_ARGS;
+      return stream_refuse_args (err_buf);
     }
 
-  error = hm_get_connection (mapped_conn_id, &con_handle);
+  error = stream_get_connection (mapped_conn_id, &con_handle, err_buf);
   if (error != CCI_ER_NO_ERROR)
     {
-      set_error_buffer (err_buf, error, NULL);
       return error;
     }
-  reset_error_buffer (&(con_handle->err_buf));
 
   error = qe_stream_read (con_handle, handle, buf, max, flags, nread, reply_flags, &(con_handle->err_buf));
-
-  if (error < 0)
-    {
-      set_error_buffer (&(con_handle->err_buf), error, NULL);
-    }
-  get_last_error (con_handle, err_buf);
-  con_handle->used = false;
-
-  return error;
+  return stream_put_connection (con_handle, error, err_buf);
 }
 
 int
 cci_stream_release (int mapped_conn_id, long long handle, T_CCI_ERROR * err_buf)
 {
   T_CON_HANDLE *con_handle = NULL;
-  int error = CCI_ER_NO_ERROR;
+  int error;
 
-  reset_error_buffer (err_buf);
-
-  error = hm_get_connection (mapped_conn_id, &con_handle);
+  error = stream_get_connection (mapped_conn_id, &con_handle, err_buf);
   if (error != CCI_ER_NO_ERROR)
     {
-      set_error_buffer (err_buf, error, NULL);
       return error;
     }
-  reset_error_buffer (&(con_handle->err_buf));
 
   error = qe_stream_release (con_handle, handle, &(con_handle->err_buf));
   /* out of a transaction the CAS holds no download handle, so a lost connection left nothing to release */
@@ -7072,12 +7045,5 @@ cci_stream_release (int mapped_conn_id, long long handle, T_CCI_ERROR * err_buf)
       error = CCI_ER_NO_ERROR;
     }
 
-  if (error < 0)
-    {
-      set_error_buffer (&(con_handle->err_buf), error, NULL);
-    }
-  get_last_error (con_handle, err_buf);
-  con_handle->used = false;
-
-  return error;
+  return stream_put_connection (con_handle, error, err_buf);
 }

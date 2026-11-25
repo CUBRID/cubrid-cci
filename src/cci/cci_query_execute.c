@@ -7452,22 +7452,36 @@ qe_stream_request (T_CON_HANDLE * con_handle, T_NET_BUF * net_buf, char **result
   return net_recv_msg (con_handle, result_msg, result_msg_size, err_buf);
 }
 
-/* the count an END-shaped reply carries after its result code */
+/* the 64-bit value a reply carries right after its result code */
 static int
-qe_stream_take_count (int err_code, char *result_msg, int result_msg_size, long long *count)
+qe_stream_take_bigint (char *result_msg, int result_msg_size, INT64 * value)
 {
-  INT64 value = 0;
-
-  if (err_code < 0)
-    {
-      return err_code;
-    }
   if (result_msg == NULL || result_msg_size < NET_SIZE_INT + NET_SIZE_BIGINT)
     {
       return CCI_ER_COMMUNICATION;
     }
 
-  NET_STR_TO_BIGINT (value, result_msg + NET_SIZE_INT);
+  NET_STR_TO_BIGINT (*value, result_msg + NET_SIZE_INT);
+  return CCI_ER_NO_ERROR;
+}
+
+/* the count an END-shaped reply carries after its result code */
+static int
+qe_stream_take_count (int err_code, char *result_msg, int result_msg_size, long long *count)
+{
+  INT64 value = 0;
+  int error;
+
+  if (err_code < 0)
+    {
+      return err_code;
+    }
+  error = qe_stream_take_bigint (result_msg, result_msg_size, &value);
+  if (error < 0)
+    {
+      return error;
+    }
+
   if (count != NULL)
     {
       *count = (long long) value;
@@ -7475,16 +7489,20 @@ qe_stream_take_count (int err_code, char *result_msg, int result_msg_size, long 
   return err_code;
 }
 
-/* the bytes and flags a READ_OPEN or READ reply carries at ptr, into buf of max bytes */
+/* the length, the flags and the bytes a READ_OPEN or READ reply carries at offset, into buf of max bytes */
 static int
-qe_stream_take_read (char *ptr, char *end, char *buf, int max, int *nread, char *reply_flags)
+qe_stream_take_read (char *result_msg, int result_msg_size, int offset, char *buf, int max, int *nread,
+		     char *reply_flags)
 {
+  char *ptr, *end;
   int n, flags;
 
-  if (end - ptr < 2 * NET_SIZE_INT)
+  if (result_msg == NULL || result_msg_size - offset < 2 * NET_SIZE_INT)
     {
       return CCI_ER_COMMUNICATION;
     }
+  ptr = result_msg + offset;
+  end = result_msg + result_msg_size;
   NET_STR_TO_INT (n, ptr);
   ptr += NET_SIZE_INT;
   NET_STR_TO_INT (flags, ptr);
@@ -7550,7 +7568,7 @@ qe_stream_abort (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf)
   return qe_stream_request (con_handle, &net_buf, NULL, NULL, err_buf);
 }
 
-/* *result gets the binding's 64-bit value: the rows COPY loaded, or what the kind defines */
+/* *result gets the value the kind defines, such as the rows COPY loaded */
 int
 qe_stream_end (T_CON_HANDLE * con_handle, long long *result, T_CCI_ERROR * err_buf)
 {
@@ -7611,7 +7629,7 @@ qe_stream_send_final (T_CON_HANDLE * con_handle, const char *data, int data_len,
 static char
 qe_stream_read_flags (T_CON_HANDLE * con_handle, char flags)
 {
-  /* the caller's own bit only: the same value means RELEASED in a reply */
+  /* the caller sets RELEASE_AT_EOF only: CCI sets AUTO_COMMIT, 0x02, from the connection's mode */
   flags &= CAS_STREAM_FLAG_RELEASE_AT_EOF;
   if (con_handle->autocommit_mode == CCI_AUTOCOMMIT_TRUE)
     {
@@ -7647,18 +7665,13 @@ qe_stream_read_open (T_CON_HANDLE * con_handle, int stream_kind, const char *con
   err_code = qe_stream_request (con_handle, &net_buf, &result_msg, &result_msg_size, err_buf);
   if (err_code >= 0)
     {
-      if (result_msg == NULL || result_msg_size < NET_SIZE_INT + NET_SIZE_BIGINT)
-	{
-	  err_code = CCI_ER_COMMUNICATION;
-	}
-      else
-	{
-	  NET_STR_TO_BIGINT (value, result_msg + NET_SIZE_INT);
-	  *handle = (long long) value;
-	  err_code =
-	    qe_stream_take_read (result_msg + NET_SIZE_INT + NET_SIZE_BIGINT, result_msg + result_msg_size, buf,
-				 first_max, nread, reply_flags);
-	}
+      err_code = qe_stream_take_bigint (result_msg, result_msg_size, &value);
+    }
+  if (err_code >= 0)
+    {
+      *handle = (long long) value;
+      err_code = qe_stream_take_read (result_msg, result_msg_size, NET_SIZE_INT + NET_SIZE_BIGINT, buf, first_max,
+				      nread, reply_flags);
     }
   FREE_MEM (result_msg);
   if (err_code >= 0 && *handle != 0 && !(*reply_flags & CAS_STREAM_FLAG_RELEASED))
@@ -7693,15 +7706,7 @@ qe_stream_read (T_CON_HANDLE * con_handle, long long handle, char *buf, int max,
   err_code = qe_stream_request (con_handle, &net_buf, &result_msg, &result_msg_size, err_buf);
   if (err_code >= 0)
     {
-      if (result_msg == NULL || result_msg_size < NET_SIZE_INT)
-	{
-	  err_code = CCI_ER_COMMUNICATION;
-	}
-      else
-	{
-	  err_code = qe_stream_take_read (result_msg + NET_SIZE_INT, result_msg + result_msg_size, buf, max, nread,
-					  reply_flags);
-	}
+      err_code = qe_stream_take_read (result_msg, result_msg_size, NET_SIZE_INT, buf, max, nread, reply_flags);
     }
   FREE_MEM (result_msg);
   if (err_code >= 0 && (*reply_flags & CAS_STREAM_FLAG_RELEASED))
