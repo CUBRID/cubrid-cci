@@ -1608,6 +1608,16 @@ hm_stream_holds_tran (T_CON_HANDLE * con_handle)
       return true;
     }
 
+  return hm_stream_upload_open (con_handle);
+}
+
+/*
+ * hm_stream_upload_open () - Whether the last reply reports an open upload, during which the CAS refuses every
+ *   request but the stream's own and a few others, a PREPARE and a statement close among them
+ */
+bool
+hm_stream_upload_open (T_CON_HANDLE * con_handle)
+{
   return hm_broker_understand_the_protocol (hm_get_broker_version (con_handle), PROTOCOL_V13)
     && !hm_cas_predates_streams (con_handle)
     && (con_handle->cas_info[CAS_INFO_ADDITIONAL_FLAG] & CAS_INFO_FLAG_MASK_STREAM_OPEN);

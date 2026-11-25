@@ -434,7 +434,8 @@ qe_prepare (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, const char *sq
   autocommit_flag = (char) con_handle->autocommit_mode;
   ADD_ARG_BYTES (&net_buf, &autocommit_flag, 1);
 
-  while (con_handle->deferred_close_handle_count > 0)
+  /* with an upload open the CAS refuses the whole PREPARE, closes included, so they wait for the next one */
+  while (!hm_stream_upload_open (con_handle) && con_handle->deferred_close_handle_count > 0)
     {
       ADD_ARG_INT (&net_buf, con_handle->deferred_close_handle_list[--con_handle->deferred_close_handle_count]);
     }
@@ -811,6 +812,7 @@ qe_prepare_and_execute (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, ch
   char prepare_flag = 0;
   char execute_flag = CCI_EXEC_QUERY_ALL;
   int prepare_argc_count = 3;
+  int deferred_closes;
   bool use_server_query_cancel = false;
   int shard_id;
   T_BROKER_VERSION broker_ver;
@@ -835,14 +837,16 @@ qe_prepare_and_execute (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, ch
       func_code = CAS_FC_PREPARE_AND_EXECUTE_FOR_PROTO_V2;
     }
   net_buf_cp_str (&net_buf, &func_code, 1);
-  prepare_argc_count += con_handle->deferred_close_handle_count;
+  /* with an upload open the CAS refuses the whole request, closes included, so they wait for the next one */
+  deferred_closes = hm_stream_upload_open (con_handle) ? 0 : con_handle->deferred_close_handle_count;
+  prepare_argc_count += deferred_closes;
   ADD_ARG_INT (&net_buf, prepare_argc_count);
   ADD_ARG_STR (&net_buf, req_handle->sql_text, sql_stmt_size, con_handle->charset);
   ADD_ARG_BYTES (&net_buf, &prepare_flag, 1);
   autocommit_flag = (char) con_handle->autocommit_mode;
   ADD_ARG_BYTES (&net_buf, &autocommit_flag, 1);
 
-  while (con_handle->deferred_close_handle_count > 0)
+  while (deferred_closes-- > 0)
     {
       ADD_ARG_INT (&net_buf, con_handle->deferred_close_handle_list[--con_handle->deferred_close_handle_count]);
     }
@@ -1323,9 +1327,10 @@ qe_close_req_handle_internal (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_hand
       return 0;
     }
 
-  if (req_handle->stmt_type == CUBRID_STMT_SELECT || req_handle->stmt_type == CUBRID_STMT_GET_STATS
-      || req_handle->stmt_type == CUBRID_STMT_CALL || req_handle->stmt_type == CUBRID_STMT_CALL_SP
-      || req_handle->stmt_type == CUBRID_STMT_EVALUATE || force_close)
+  /* with an upload open the CAS refuses a close, so it waits for the next PREPARE as the others do */
+  if ((req_handle->stmt_type == CUBRID_STMT_SELECT || req_handle->stmt_type == CUBRID_STMT_GET_STATS
+       || req_handle->stmt_type == CUBRID_STMT_CALL || req_handle->stmt_type == CUBRID_STMT_CALL_SP
+       || req_handle->stmt_type == CUBRID_STMT_EVALUATE || force_close) && !hm_stream_upload_open (con_handle))
     {
       goto send_close_handle_msg;
     }

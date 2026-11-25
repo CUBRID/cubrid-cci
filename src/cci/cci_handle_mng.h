@@ -377,6 +377,7 @@ extern void hm_stream_handle_clear (T_CON_HANDLE * con_handle);
 extern void hm_stream_lost (T_CON_HANDLE * con_handle);
 extern bool hm_stream_holds_tran (T_CON_HANDLE * con_handle);
 extern bool hm_cas_predates_streams (T_CON_HANDLE * con_handle);
+extern bool hm_stream_upload_open (T_CON_HANDLE * con_handle);
 
 extern void hm_ssl_free (T_CON_HANDLE * con_handle);
 
