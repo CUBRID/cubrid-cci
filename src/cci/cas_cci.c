@@ -6801,7 +6801,8 @@ stream_put_connection (T_CON_HANDLE * con_handle, int error, T_CCI_ERROR * err_b
  *   error(in/out): the open's error; reset_connect ()'s error when the reconnect fails
  *
  *   As in the other cci_* calls that resend out of a transaction: when the error is one a reconnect cures, the
- *   open goes again, after reset_connect () unless the broker reconnects to the server itself.
+ *   open goes again, after reset_connect () unless the broker reconnects to the server itself. The stream calls
+ *   set no start time of their own, so the reconnect sets one for login_timeout to count from.
  */
 static bool
 stream_resend_open (T_CON_HANDLE * con_handle, int *error)
@@ -6812,8 +6813,11 @@ stream_resend_open (T_CON_HANDLE * con_handle, int *error)
     }
   if (NEED_TO_RECONNECT (con_handle, *error))
     {
+      /* the reconnect takes at most login_timeout, as cci_connect () does */
+      SET_START_TIME_FOR_LOGIN (con_handle);
       /* Finally, reset_connect will return ER_TIMEOUT */
       *error = reset_connect (con_handle, NULL, &(con_handle->err_buf));
+      RESET_START_TIME (con_handle);
       if (*error != CCI_ER_NO_ERROR)
 	{
 	  return false;
