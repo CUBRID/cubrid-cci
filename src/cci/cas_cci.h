@@ -1015,7 +1015,8 @@ extern "C"
   extern int cci_stream_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf);
   /* result: the rows COPY loaded, or what the kind defines, at full width */
   extern int cci_stream_end_result (int mapped_conn_id, long long *result, T_CCI_ERROR * err_buf);
-  /* cci_stream_end_result () as an int: a value above INT_MAX comes back as INT_MAX */
+  /* cci_stream_end_result () as an int: a value above INT_MAX comes back as INT_MAX. A negative return is an error, so a
+   * kind whose value can be negative needs cci_stream_end_result (). */
   extern int cci_stream_end (int mapped_conn_id, T_CCI_ERROR * err_buf);
   extern int cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int config_len, char flags,
 			      const char *data, int data_len, long long *count, T_CCI_ERROR * err_buf);

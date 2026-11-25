@@ -188,7 +188,7 @@ static int reset_connect (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, 
 static int stream_refuse_args (T_CCI_ERROR * err_buf);
 static int stream_get_connection (int mapped_conn_id, T_CON_HANDLE ** con_handle, T_CCI_ERROR * err_buf);
 static int stream_put_connection (T_CON_HANDLE * con_handle, int error, T_CCI_ERROR * err_buf);
-static bool stream_resend_open (T_CON_HANDLE * con_handle, int *error);
+static bool stream_resend_open (T_CON_HANDLE * con_handle, int *error, bool * resent);
 
 /************************************************************************
  * INTERFACE VARIABLES							*
@@ -6799,15 +6799,17 @@ stream_put_connection (T_CON_HANDLE * con_handle, int error, T_CCI_ERROR * err_b
 /*
  * stream_resend_open () - Whether to send a stream open again after the error it returned
  *   error(in/out): the open's error; reset_connect ()'s error when the reconnect fails
+ *   resent(in/out): whether the open went again already; it goes again at most once, since a stream request can be
+ *                   large and one that fails again on a new connection fails for its own sake
  *
  *   As in the other cci_* calls that resend out of a transaction: when the error is one a reconnect cures, the
  *   open goes again, after reset_connect () unless the broker reconnects to the server itself. The stream calls
  *   set no start time of their own, so the reconnect sets one for login_timeout to count from.
  */
 static bool
-stream_resend_open (T_CON_HANDLE * con_handle, int *error)
+stream_resend_open (T_CON_HANDLE * con_handle, int *error, bool * resent)
 {
-  if (!IS_OUT_TRAN (con_handle) || !IS_ER_TO_RECONNECT (*error, con_handle->err_buf.err_code))
+  if (*resent || !IS_OUT_TRAN (con_handle) || !IS_ER_TO_RECONNECT (*error, con_handle->err_buf.err_code))
     {
       return false;
     }
@@ -6824,6 +6826,9 @@ stream_resend_open (T_CON_HANDLE * con_handle, int *error)
 	}
     }
 
+  /* the first try's error must not outlive a resend that succeeds */
+  reset_error_buffer (&(con_handle->err_buf));
+  *resent = true;
   return true;
 }
 
@@ -6886,8 +6891,8 @@ cci_stream_end (int mapped_conn_id, T_CCI_ERROR * err_buf)
 /*
  * cci_stream_init () - Open a stream of a kind whose client half is the driver
  *   config, config_len: the kind's config, starting with its version (a big-endian int)
- *   flags, data, data_len: CAS_STREAM_FLAG_FINAL with the whole value, or 0 with a first chunk or none
- *   count(out): with CAS_STREAM_FLAG_FINAL, what cci_stream_end_result () would have returned in result
+ *   flags, data, data_len: CCI_STREAM_FINAL with the whole value, or 0 with a first chunk or none
+ *   count(out): with CCI_STREAM_FINAL, what cci_stream_end_result () would have returned in result
  */
 int
 cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int config_len, char flags,
@@ -6895,6 +6900,7 @@ cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int co
 {
   T_CON_HANDLE *con_handle = NULL;
   int error;
+  bool resent = false;
 
   /* data and config go in one request, so they share STREAM_REQUEST_ARG_MAX */
   if (config_len < 0 || (config_len > 0 && config == NULL) || data_len < 0 || (data_len > 0 && data == NULL)
@@ -6919,7 +6925,7 @@ cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int co
       error = qe_stream_init (con_handle, stream_kind, config, config_len, flags, data, data_len, count,
 			      &(con_handle->err_buf));
     }
-  while (stream_resend_open (con_handle, &error));
+  while (stream_resend_open (con_handle, &error, &resent));
 
   return stream_put_connection (con_handle, error, err_buf);
 }
@@ -6969,9 +6975,9 @@ cci_stream_send_final (int mapped_conn_id, const char *data, int data_len, long 
  * cci_stream_read_open () - Open a server->client stream
  *   config, config_len: the kind's config, starting with its version (a big-endian int)
  *   first_max, flags: 0, 0 to open only; or the bytes buf takes from a first read in the same request, and
- *                     CAS_STREAM_FLAG_RELEASE_AT_EOF to leave no handle when that read is the whole value
+ *                     CCI_STREAM_RELEASE_AT_EOF to leave no handle when that read is the whole value
  *   handle(out): for cci_stream_read () and cci_stream_release (); 0 when nothing was left open
- *   reply_flags(out): CAS_STREAM_FLAG_EOF, CAS_STREAM_FLAG_RELEASED
+ *   reply_flags(out): CCI_STREAM_EOF, CCI_STREAM_RELEASED
  */
 int
 cci_stream_read_open (int mapped_conn_id, int stream_kind, const char *config, int config_len, int first_max,
@@ -6979,6 +6985,7 @@ cci_stream_read_open (int mapped_conn_id, int stream_kind, const char *config, i
 {
   T_CON_HANDLE *con_handle = NULL;
   int error;
+  bool resent = false;
 
   if (config_len < 0 || (config_len > 0 && config == NULL) || config_len > STREAM_REQUEST_ARG_MAX || first_max < 0
       || (first_max > 0 && buf == NULL) || handle == NULL || nread == NULL || reply_flags == NULL)
@@ -7002,7 +7009,7 @@ cci_stream_read_open (int mapped_conn_id, int stream_kind, const char *config, i
       error = qe_stream_read_open (con_handle, stream_kind, config, config_len, first_max, flags, handle, buf, nread,
 				   reply_flags, &(con_handle->err_buf));
     }
-  while (stream_resend_open (con_handle, &error));
+  while (stream_resend_open (con_handle, &error, &resent));
 
   return stream_put_connection (con_handle, error, err_buf);
 }

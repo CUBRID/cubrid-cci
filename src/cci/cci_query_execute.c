@@ -7458,13 +7458,32 @@ qe_stream_request (T_CON_HANDLE * con_handle, T_NET_BUF * net_buf, char **result
   return net_recv_msg (con_handle, result_msg, result_msg_size, err_buf);
 }
 
+/*
+ * qe_stream_bad_reply () - A reply that does not parse: the CAS that sent it cannot be trusted with the rest of the
+ *   session. The connection goes as on a lost reply, which also ends on the server whatever the request opened there,
+ *   and a connection in auto-commit leaves the transaction that went with it.
+ */
+static int
+qe_stream_bad_reply (T_CON_HANDLE * con_handle)
+{
+  hm_ssl_free (con_handle);
+  CLOSE_SOCKET (con_handle->sock_fd);
+  con_handle->sock_fd = INVALID_SOCKET;
+  hm_stream_lost (con_handle);
+  if (con_handle->autocommit_mode == CCI_AUTOCOMMIT_TRUE)
+    {
+      con_handle->con_status = CCI_CON_STATUS_OUT_TRAN;
+    }
+  return CCI_ER_COMMUNICATION;
+}
+
 /* the 64-bit value a reply carries right after its result code */
 static int
-qe_stream_take_bigint (char *result_msg, int result_msg_size, INT64 * value)
+qe_stream_take_bigint (T_CON_HANDLE * con_handle, char *result_msg, int result_msg_size, INT64 * value)
 {
   if (result_msg == NULL || result_msg_size < NET_SIZE_INT + NET_SIZE_BIGINT)
     {
-      return CCI_ER_COMMUNICATION;
+      return qe_stream_bad_reply (con_handle);
     }
 
   NET_STR_TO_BIGINT (*value, result_msg + NET_SIZE_INT);
@@ -7473,7 +7492,7 @@ qe_stream_take_bigint (char *result_msg, int result_msg_size, INT64 * value)
 
 /* the count an END-shaped reply carries after its result code */
 static int
-qe_stream_take_count (int err_code, char *result_msg, int result_msg_size, long long *count)
+qe_stream_take_count (T_CON_HANDLE * con_handle, int err_code, char *result_msg, int result_msg_size, long long *count)
 {
   INT64 value = 0;
   int error;
@@ -7482,7 +7501,7 @@ qe_stream_take_count (int err_code, char *result_msg, int result_msg_size, long 
     {
       return err_code;
     }
-  error = qe_stream_take_bigint (result_msg, result_msg_size, &value);
+  error = qe_stream_take_bigint (con_handle, result_msg, result_msg_size, &value);
   if (error < 0)
     {
       return error;
@@ -7497,15 +7516,15 @@ qe_stream_take_count (int err_code, char *result_msg, int result_msg_size, long 
 
 /* the length, the flags and the bytes a READ_OPEN or READ reply carries at offset, into buf of max bytes */
 static int
-qe_stream_take_read (char *result_msg, int result_msg_size, int offset, char *buf, int max, int *nread,
-		     char *reply_flags)
+qe_stream_take_read (T_CON_HANDLE * con_handle, char *result_msg, int result_msg_size, int offset, char *buf, int max,
+		     int *nread, char *reply_flags)
 {
   char *ptr, *end;
   int n, flags;
 
   if (result_msg == NULL || result_msg_size - offset < 2 * NET_SIZE_INT)
     {
-      return CCI_ER_COMMUNICATION;
+      return qe_stream_bad_reply (con_handle);
     }
   ptr = result_msg + offset;
   end = result_msg + result_msg_size;
@@ -7515,7 +7534,7 @@ qe_stream_take_read (char *result_msg, int result_msg_size, int offset, char *bu
   ptr += NET_SIZE_INT;
   if (n < 0 || n > max || end - ptr < n)
     {
-      return CCI_ER_COMMUNICATION;
+      return qe_stream_bad_reply (con_handle);
     }
 
   if (n > 0)
@@ -7555,7 +7574,7 @@ qe_stream_init (T_CON_HANDLE * con_handle, int stream_kind, const char *config, 
   err_code = qe_stream_request (con_handle, &net_buf, &result_msg, &result_msg_size, err_buf);
   if (flags & CAS_STREAM_FLAG_FINAL)
     {
-      err_code = qe_stream_take_count (err_code, result_msg, result_msg_size, count);
+      err_code = qe_stream_take_count (con_handle, err_code, result_msg, result_msg_size, count);
     }
   FREE_MEM (result_msg);
 
@@ -7588,7 +7607,7 @@ qe_stream_end (T_CON_HANDLE * con_handle, long long *result, T_CCI_ERROR * err_b
   net_buf_cp_str (&net_buf, &func_code, 1);
 
   err_code = qe_stream_request (con_handle, &net_buf, &result_msg, &result_msg_size, err_buf);
-  err_code = qe_stream_take_count (err_code, result_msg, result_msg_size, result);
+  err_code = qe_stream_take_count (con_handle, err_code, result_msg, result_msg_size, result);
   FREE_MEM (result_msg);
 
   return err_code;
@@ -7625,7 +7644,7 @@ qe_stream_send_final (T_CON_HANDLE * con_handle, const char *data, int data_len,
   ADD_ARG_BYTES (&net_buf, &flags, 1);
 
   err_code = qe_stream_request (con_handle, &net_buf, &result_msg, &result_msg_size, err_buf);
-  err_code = qe_stream_take_count (err_code, result_msg, result_msg_size, count);
+  err_code = qe_stream_take_count (con_handle, err_code, result_msg, result_msg_size, count);
   FREE_MEM (result_msg);
 
   return err_code;
@@ -7671,15 +7690,23 @@ qe_stream_read_open (T_CON_HANDLE * con_handle, int stream_kind, const char *con
   err_code = qe_stream_request (con_handle, &net_buf, &result_msg, &result_msg_size, err_buf);
   if (err_code >= 0)
     {
-      err_code = qe_stream_take_bigint (result_msg, result_msg_size, &value);
+      err_code = qe_stream_take_bigint (con_handle, result_msg, result_msg_size, &value);
     }
   if (err_code >= 0)
     {
       *handle = (long long) value;
-      err_code = qe_stream_take_read (result_msg, result_msg_size, NET_SIZE_INT + NET_SIZE_BIGINT, buf, first_max,
-				      nread, reply_flags);
+      err_code =
+	qe_stream_take_read (con_handle, result_msg, result_msg_size, NET_SIZE_INT + NET_SIZE_BIGINT, buf, first_max,
+			     nread, reply_flags);
     }
   FREE_MEM (result_msg);
+  if (err_code < 0)
+    {
+      /* a handle from a reply that failed afterwards went with the connection qe_stream_bad_reply () closed */
+      *handle = 0;
+      *nread = 0;
+      *reply_flags = 0;
+    }
   if (err_code >= 0 && *handle != 0 && !(*reply_flags & CAS_STREAM_FLAG_RELEASED))
     {
       hm_stream_handle_add (con_handle, *handle);
@@ -7712,10 +7739,12 @@ qe_stream_read (T_CON_HANDLE * con_handle, long long handle, char *buf, int max,
   err_code = qe_stream_request (con_handle, &net_buf, &result_msg, &result_msg_size, err_buf);
   if (err_code >= 0)
     {
-      err_code = qe_stream_take_read (result_msg, result_msg_size, NET_SIZE_INT, buf, max, nread, reply_flags);
+      err_code =
+	qe_stream_take_read (con_handle, result_msg, result_msg_size, NET_SIZE_INT, buf, max, nread, reply_flags);
     }
   FREE_MEM (result_msg);
-  if (err_code >= 0 && (*reply_flags & CAS_STREAM_FLAG_RELEASED))
+  /* the server releases a handle whose read failed there, and a server error says nothing of RELEASED */
+  if ((err_code >= 0 && (*reply_flags & CAS_STREAM_FLAG_RELEASED)) || err_code == CCI_ER_DBMS)
     {
       hm_stream_handle_remove (con_handle, handle);
     }
