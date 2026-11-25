@@ -7429,7 +7429,8 @@ qe_stream_request (T_CON_HANDLE * con_handle, T_NET_BUF * net_buf, char **result
   int err_code;
 
   /* the family (45-51) came with PROTOCOL_V13, and an older CAS closes the connection on a code it does not know */
-  if (!hm_broker_understand_the_protocol (hm_get_broker_version (con_handle), PROTOCOL_V13))
+  if (!hm_broker_understand_the_protocol (hm_get_broker_version (con_handle), PROTOCOL_V13)
+      || hm_cas_predates_streams (con_handle))
     {
       net_buf_clear (net_buf);
       return CCI_ER_NOT_IMPLEMENTED;

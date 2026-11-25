@@ -107,6 +107,8 @@ extern "C"
  * Only a PROTOCOL_V13 client may read it: an earlier server leaves every bit
  * above the three older masks at 1. */
 #define CAS_INFO_FLAG_MASK_STREAM_OPEN          0x08
+/* 0 in every reply from the stream protocol (CUBRID/cubrid#8019) on; a CAS before it sends 1 */
+#define CAS_INFO_FLAG_MASK_RESERVED             0xF0
 
 /* The flags byte of the stream requests and replies (the engine's cas_protocol.h). INIT, READ_OPEN and READ always
  * carry it; on SEND_DATA it is optional. */

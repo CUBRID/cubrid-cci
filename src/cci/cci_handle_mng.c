@@ -1545,6 +1545,21 @@ hm_force_close_connection (T_CON_HANDLE * con_handle)
   con_handle->force_failback = 0;
 }
 
+/*
+ * hm_stream_lost () - A request got no reply: the CAS, and a stream it held, may be gone. Forget the stream, and in
+ *   auto-commit leave the transaction it held, so the next call reconnects as it does between statements.
+ */
+void
+hm_stream_lost (T_CON_HANDLE * con_handle)
+{
+  if (con_handle->autocommit_mode == CCI_AUTOCOMMIT_TRUE && hm_stream_holds_tran (con_handle))
+    {
+      con_handle->con_status = CCI_CON_STATUS_OUT_TRAN;
+    }
+  con_handle->cas_info[CAS_INFO_ADDITIONAL_FLAG] &= ~CAS_INFO_FLAG_MASK_STREAM_OPEN;
+  hm_stream_handle_clear (con_handle);
+}
+
 /* a download handle the CAS now holds, which keeps the transaction open until its release */
 void
 hm_stream_handle_add (T_CON_HANDLE * con_handle, long long handle)
@@ -1594,7 +1609,21 @@ hm_stream_holds_tran (T_CON_HANDLE * con_handle)
     }
 
   return hm_broker_understand_the_protocol (hm_get_broker_version (con_handle), PROTOCOL_V13)
+    && !hm_cas_predates_streams (con_handle)
     && (con_handle->cas_info[CAS_INFO_ADDITIONAL_FLAG] & CAS_INFO_FLAG_MASK_STREAM_OPEN);
+}
+
+/*
+ * hm_cas_predates_streams () - Whether the last reply came from a CAS without the stream protocol
+ *
+ *   Such a CAS leaves every bit above the three older masks at 1, and develop builds between CBRD-27389 and
+ *   CUBRID/cubrid#8019 report PROTOCOL_V13 all the same. From #8019 on the reserved bits are 0, so a CAS that one
+ *   day defines one of them still reads as knowing the stream protocol.
+ */
+bool
+hm_cas_predates_streams (T_CON_HANDLE * con_handle)
+{
+  return (con_handle->cas_info[CAS_INFO_ADDITIONAL_FLAG] & CAS_INFO_FLAG_MASK_RESERVED) == CAS_INFO_FLAG_MASK_RESERVED;
 }
 
 void

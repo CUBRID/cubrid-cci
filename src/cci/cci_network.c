@@ -672,6 +672,7 @@ net_send_msg (T_CON_HANDLE * con_handle, char *msg, int size)
     }
   if (err < 0)
     {
+      hm_stream_lost (con_handle);
       return CCI_ER_COMMUNICATION;
     }
 
@@ -690,6 +691,7 @@ net_send_msg (T_CON_HANDLE * con_handle, char *msg, int size)
     }
   if (err < 0)
     {
+      hm_stream_lost (con_handle);
       return CCI_ER_COMMUNICATION;
     }
 
@@ -879,6 +881,7 @@ error_return:
   hm_ssl_free (con_handle);
   CLOSE_SOCKET (con_handle->sock_fd);
   con_handle->sock_fd = INVALID_SOCKET;
+  hm_stream_lost (con_handle);
   return result_code;
 }
 
