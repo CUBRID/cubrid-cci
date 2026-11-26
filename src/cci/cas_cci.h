@@ -166,8 +166,8 @@
 #define CCI_EXEC_THREAD			0x10
 #define CCI_EXEC_NOT_USED		0x20	/* not currently used */
 #define CCI_EXEC_RETURN_GENERATED_KEYS	0x40
-/* the caller drives a stream the statement opens (COPY ... FROM STDIN) with the cci_stream_* calls; without it CCI
- * aborts that stream and the execute fails with CCI_ER_STREAM_NOT_REQUESTED. CCI does not send it to the CAS. */
+/* the caller sends the data the statement takes (COPY ... FROM STDIN) with the cci_stream_* calls; the CAS gives up a
+ * stream a statement opens without it */
 #define CCI_EXEC_STREAM			((char) 0x80)
 
 #define CCI_FETCH_SENSITIVE		1
@@ -514,7 +514,6 @@ typedef enum
   CCI_ER_SSL_HANDSHAKE = -21047,
   /* in the CCI range unlike CCI_ER_SSL_HANDSHAKE above, whose -21047 is kept as is for compatibility */
   CCI_ER_SSL_CERT_VERIFY = -20047,
-  CCI_ER_STREAM_NOT_REQUESTED = -20048,
 
   CCI_ER_NOT_IMPLEMENTED = -20099,
   CCI_ER_END = -20100
@@ -998,44 +997,27 @@ extern "C"
   extern int cci_is_shard (int con_h_id, T_CCI_ERROR * err_buf);
   extern int cci_get_cas_info (int mapped_conn_id, char *info_buf, int buf_length, T_CCI_ERROR * err_buf);
 
-  /* Stream calls. A config starts with the kind's version, a big-endian int; CCI reads none of it. A refusal by the
-   * server returns CCI_ER_DBMS with err_buf->err_code, and the message gives the reason:
+  /* COPY ... FROM STDIN: run the statement with cci_execute () and CCI_EXEC_STREAM, send its data with
+   * cci_stream_send_data (), and end it with cci_stream_end_result () or cci_stream_send_final (), or give it up with
+   * cci_stream_abort (). A refusal by the server returns CCI_ER_DBMS with err_buf->err_code, and the message gives the
+   * reason:
    *   -1217  any other failure of the stream
-   *   -1218  no stream is open, or the handle does not resolve
-   *   -1219  the kind is unknown, is opened in the other direction or only by its SQL statement, or the config
-   *          version is above the highest one the server takes (the message names it)
-   *   -1220  the request is out of order or malformed (a config with no version or a version below 1), or the
-   *          transaction already holds the most download handles it may (1024)
-   * A kind may also refuse with an error code of its own. A broker older than PROTOCOL_V13 gets no request: the call
-   * returns CCI_ER_NOT_IMPLEMENTED and the connection stays usable. A SHARD broker carries no stream and returns
-   * CAS_ER_NOT_IMPLEMENTED. A statement such as COPY ... FROM STDIN leaves its stream open only for cci_execute ()
-   * with CCI_EXEC_STREAM: cci_prepare_and_execute () takes no flags. */
-
-  /* flags of the stream calls, and of what cci_stream_read_open () / cci_stream_read () report */
-#define CCI_STREAM_FINAL		0x01	/* cci_stream_init (): data is the whole value */
-#define CCI_STREAM_RELEASE_AT_EOF	0x01	/* cci_stream_read_open (), cci_stream_read () */
-#define CCI_STREAM_EOF			0x01	/* reply */
-#define CCI_STREAM_RELEASED		0x02	/* reply: the handle is gone */
+   *   -1218  no stream is open
+   *   -1219  the statement opened its stream for an execute without CCI_EXEC_STREAM, or through
+   *          cci_prepare_and_execute (), which takes no flags; the CAS gave the stream up
+   *   -1220  the request is out of order
+   * The statement may also refuse with an error code of its own. A broker older than PROTOCOL_V13 gets no request: the
+   * call returns CCI_ER_NOT_IMPLEMENTED and the connection stays usable. A SHARD broker carries no stream and returns
+   * CAS_ER_NOT_IMPLEMENTED. */
 
   extern int cci_stream_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf);
-  /* result: the rows COPY loaded, or what the kind defines, at full width */
+  /* result: the rows COPY loaded, at full width */
   extern int cci_stream_end_result (int mapped_conn_id, long long *result, T_CCI_ERROR * err_buf);
-  /* cci_stream_end_result () as an int: a value above INT_MAX comes back as INT_MAX. A negative return is an error, so a
-   * kind whose value can be negative needs cci_stream_end_result (). */
+  /* cci_stream_end_result () as an int: a value above INT_MAX comes back as INT_MAX. A negative return is an error. */
   extern int cci_stream_end (int mapped_conn_id, T_CCI_ERROR * err_buf);
-  extern int cci_stream_init (int mapped_conn_id, int stream_kind, const char *config, int config_len, char flags,
-			      const char *data, int data_len, long long *count, T_CCI_ERROR * err_buf);
   extern int cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf);
   extern int cci_stream_send_final (int mapped_conn_id, const char *data, int data_len, long long *count,
 				    T_CCI_ERROR * err_buf);
-  /* A download handle lasts only as long as the transaction that opened it: a commit ends it, and in auto-commit so
-   * does any other statement on the connection. A read on it then fails with -1218. */
-  extern int cci_stream_read_open (int mapped_conn_id, int stream_kind, const char *config, int config_len,
-				   int first_max, char flags, long long *handle, char *buf, int *nread,
-				   char *reply_flags, T_CCI_ERROR * err_buf);
-  extern int cci_stream_read (int mapped_conn_id, long long handle, char *buf, int max, char flags, int *nread,
-			      char *reply_flags, T_CCI_ERROR * err_buf);
-  extern int cci_stream_release (int mapped_conn_id, long long handle, T_CCI_ERROR * err_buf);
 
 #ifdef __cplusplus
 }

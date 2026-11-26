@@ -61,6 +61,7 @@
 #include "porting.h"
 #include "cci_common.h"
 #include "cas_cci.h"
+#include "cci_stream.h"
 #include "cci_handle_mng.h"
 #include "cci_network.h"
 #include "cci_query_execute.h"
@@ -186,7 +187,6 @@ static int convert_driver_mode_to_cas_mode (int driver_mode);
 static int reset_connect (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, T_CCI_ERROR * err_buf);
 
 static int stream_refuse_args (T_CCI_ERROR * err_buf);
-static int stream_refuse_unrequested (T_CON_HANDLE * con_handle, int error);
 static int stream_get_connection (int mapped_conn_id, T_CON_HANDLE ** con_handle, T_CCI_ERROR * err_buf);
 static int stream_put_connection (T_CON_HANDLE * con_handle, int error, T_CCI_ERROR * err_buf);
 static bool stream_resend_open (T_CON_HANDLE * con_handle, int *error, bool * resent);
@@ -1327,7 +1327,6 @@ cci_execute (int mapped_stmt_id, char flag, int max_col_size, T_CCI_ERROR * err_
   T_BROKER_VERSION broker_ver;
   int loop;
   char prepare_flag;
-  bool stream_requested;
 
 #ifdef CCI_DEBUG
   CCI_DEBUG_PRINT (print_debug_msg
@@ -1366,10 +1365,6 @@ cci_execute (int mapped_stmt_id, char flag, int max_col_size, T_CCI_ERROR * err_
     {
       flag &= ~CCI_EXEC_ASYNC;	/* to make it sure */
     }
-
-  /* CCI's own flag, which the CAS does not know */
-  stream_requested = (flag & CCI_EXEC_STREAM) != 0;
-  flag &= ~CCI_EXEC_STREAM;
 
   if (IS_OUT_TRAN (con_handle) && IS_FORCE_FAILBACK (con_handle) && !IS_INVALID_SOCKET (con_handle->sock_fd))
     {
@@ -1442,11 +1437,6 @@ cci_execute (int mapped_stmt_id, char flag, int max_col_size, T_CCI_ERROR * err_
 	}
     }
   while (loop && error == CAS_ER_STMT_POOLING && IS_BROKER_STMT_POOL (con_handle));
-
-  if (!stream_requested)
-    {
-      error = stream_refuse_unrequested (con_handle, error);
-    }
 
 execute_end:
   RESET_START_TIME (con_handle);
@@ -1570,8 +1560,6 @@ cci_prepare_and_execute (int mapped_conn_id, char *sql_stmt, int max_col_size, i
 
       error = qe_prepare_and_execute (req_handle, con_handle, sql_stmt, max_col_size, &(con_handle->err_buf));
     }
-  /* there is no flag to ask for a stream with */
-  error = stream_refuse_unrequested (con_handle, error);
 
   API_ELOG (con_handle, error);
   if (error < 0)
@@ -4644,9 +4632,6 @@ cci_get_err_msg_internal (int error)
       return "The server certificate could not be verified (check sslca, and the certificate's validity period and "
 	"subject alternative names)";
 
-    case CCI_ER_STREAM_NOT_REQUESTED:
-      return "A statement opened a stream without CCI_EXEC_STREAM; the stream was aborted";
-
     case CCI_ER_NOT_IMPLEMENTED:
       return "Attempt to use a not supported service";
 
@@ -6769,29 +6754,6 @@ stream_refuse_args (T_CCI_ERROR * err_buf)
   reset_error_buffer (err_buf);
   set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
   return CCI_ER_INVALID_ARGS;
-}
-
-/*
- * stream_refuse_unrequested () - Abort an upload a statement opened for a caller that did not ask for one
- *   return: CCI_ER_STREAM_NOT_REQUESTED when it aborted one, else error
- *
- *   A binding over CCI without the stream calls could neither send the bytes nor end the upload, and the CAS refuses
- *   every statement until the upload ends. In auto-commit the ABORT also rolls the statement's transaction back.
- */
-static int
-stream_refuse_unrequested (T_CON_HANDLE * con_handle, int error)
-{
-  T_CCI_ERROR abort_err;
-
-  if (error < 0 || !hm_stream_upload_open (con_handle))
-    {
-      return error;
-    }
-
-  /* the caller gets the execute's error, not the abort's */
-  reset_error_buffer (&abort_err);
-  (void) qe_stream_abort (con_handle, &abort_err);
-  return CCI_ER_STREAM_NOT_REQUESTED;
 }
 
 /*
