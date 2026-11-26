@@ -166,6 +166,9 @@
 #define CCI_EXEC_THREAD			0x10
 #define CCI_EXEC_NOT_USED		0x20	/* not currently used */
 #define CCI_EXEC_RETURN_GENERATED_KEYS	0x40
+/* the caller drives a stream the statement opens (COPY ... FROM STDIN) with the cci_stream_* calls; without it CCI
+ * aborts that stream and the execute fails with CCI_ER_STREAM_NOT_REQUESTED. CCI does not send it to the CAS. */
+#define CCI_EXEC_STREAM			((char) 0x80)
 
 #define CCI_FETCH_SENSITIVE		1
 
@@ -511,6 +514,7 @@ typedef enum
   CCI_ER_SSL_HANDSHAKE = -21047,
   /* in the CCI range unlike CCI_ER_SSL_HANDSHAKE above, whose -21047 is kept as is for compatibility */
   CCI_ER_SSL_CERT_VERIFY = -20047,
+  CCI_ER_STREAM_NOT_REQUESTED = -20048,
 
   CCI_ER_NOT_IMPLEMENTED = -20099,
   CCI_ER_END = -20100
@@ -1004,7 +1008,8 @@ extern "C"
    *          transaction already holds the most download handles it may (1024)
    * A kind may also refuse with an error code of its own. A broker older than PROTOCOL_V13 gets no request: the call
    * returns CCI_ER_NOT_IMPLEMENTED and the connection stays usable. A SHARD broker carries no stream and returns
-   * CAS_ER_NOT_IMPLEMENTED. */
+   * CAS_ER_NOT_IMPLEMENTED. A statement such as COPY ... FROM STDIN leaves its stream open only for cci_execute ()
+   * with CCI_EXEC_STREAM: cci_prepare_and_execute () takes no flags. */
 
   /* flags of the stream calls, and of what cci_stream_read_open () / cci_stream_read () report */
 #define CCI_STREAM_FINAL		0x01	/* cci_stream_init (): data is the whole value */
