@@ -100,6 +100,23 @@ extern "C"
 #define CAS_INFO_FLAG_MASK_AUTOCOMMIT		0x01
 #define CAS_INFO_FLAG_MASK_FORCE_OUT_TRAN       0x02
 #define CAS_INFO_FLAG_MASK_NEW_SESSION_ID       0x04
+/* A stream is open on this connection: the statement that opened it is not
+ * finished, and in auto-commit the CAS commits at the stream's END. A driver
+ * that commits from its own side reads this and holds that commit back.
+ *
+ * Only a PROTOCOL_V13 client may read it: an earlier server leaves every bit
+ * above the three older masks at 1. */
+#define CAS_INFO_FLAG_MASK_STREAM_OPEN          0x08
+/* 0 in every reply from the stream protocol (CUBRID/cubrid#8019) on; a CAS before it sends 1 */
+#define CAS_INFO_FLAG_MASK_RESERVED             0xF0
+
+/* The flags byte of the stream requests and replies (the engine's cas_protocol.h). INIT, READ_OPEN and READ always
+ * carry it; on SEND_DATA it is optional. */
+#define CAS_STREAM_FLAG_FINAL			0x01	/* INIT, SEND_DATA: end the stream with this chunk */
+#define CAS_STREAM_FLAG_RELEASE_AT_EOF		0x01	/* READ_OPEN, READ: release the handle at eof */
+#define CAS_STREAM_FLAG_AUTO_COMMIT		0x02	/* INIT, READ_OPEN, READ: the connection runs in auto-commit */
+#define CAS_STREAM_FLAG_EOF			0x01	/* READ_OPEN, READ reply */
+#define CAS_STREAM_FLAG_RELEASED		0x02	/* READ_OPEN, READ reply: the handle is gone */
 
 #define CAS_INFO_SIZE			(4)
 #define CAS_INFO_RESERVED_DEFAULT	(-1)
@@ -199,6 +216,13 @@ extern "C"
     CAS_FC_CURSOR_CLOSE = 42,
     CAS_FC_GET_SHARD_INFO = 43,
     CAS_FC_CAS_CHANGE_MODE = 44,
+    CAS_FC_STREAM_SEND_DATA = 45,
+    CAS_FC_STREAM_END = 46,
+    CAS_FC_STREAM_INIT = 47,
+    CAS_FC_STREAM_ABORT = 48,
+    CAS_FC_STREAM_READ_OPEN = 49,
+    CAS_FC_STREAM_READ = 50,
+    CAS_FC_STREAM_RELEASE = 51,
 
     /* Whenever you want to introduce a new function code, you must add a corresponding function entry to
      * server_fn_table of both CUBRID and (MySQL, Oracle). */

@@ -434,7 +434,8 @@ qe_prepare (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, const char *sq
   autocommit_flag = (char) con_handle->autocommit_mode;
   ADD_ARG_BYTES (&net_buf, &autocommit_flag, 1);
 
-  while (con_handle->deferred_close_handle_count > 0)
+  /* with an upload open the CAS refuses the whole PREPARE, closes included, so they wait for the next one */
+  while (!hm_stream_upload_open (con_handle) && con_handle->deferred_close_handle_count > 0)
     {
       ADD_ARG_INT (&net_buf, con_handle->deferred_close_handle_list[--con_handle->deferred_close_handle_count]);
     }
@@ -811,6 +812,7 @@ qe_prepare_and_execute (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, ch
   char prepare_flag = 0;
   char execute_flag = CCI_EXEC_QUERY_ALL;
   int prepare_argc_count = 3;
+  int deferred_closes;
   bool use_server_query_cancel = false;
   int shard_id;
   T_BROKER_VERSION broker_ver;
@@ -835,14 +837,16 @@ qe_prepare_and_execute (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, ch
       func_code = CAS_FC_PREPARE_AND_EXECUTE_FOR_PROTO_V2;
     }
   net_buf_cp_str (&net_buf, &func_code, 1);
-  prepare_argc_count += con_handle->deferred_close_handle_count;
+  /* with an upload open the CAS refuses the whole request, closes included, so they wait for the next one */
+  deferred_closes = hm_stream_upload_open (con_handle) ? 0 : con_handle->deferred_close_handle_count;
+  prepare_argc_count += deferred_closes;
   ADD_ARG_INT (&net_buf, prepare_argc_count);
   ADD_ARG_STR (&net_buf, req_handle->sql_text, sql_stmt_size, con_handle->charset);
   ADD_ARG_BYTES (&net_buf, &prepare_flag, 1);
   autocommit_flag = (char) con_handle->autocommit_mode;
   ADD_ARG_BYTES (&net_buf, &autocommit_flag, 1);
 
-  while (con_handle->deferred_close_handle_count > 0)
+  while (deferred_closes-- > 0)
     {
       ADD_ARG_INT (&net_buf, con_handle->deferred_close_handle_list[--con_handle->deferred_close_handle_count]);
     }
@@ -1323,9 +1327,10 @@ qe_close_req_handle_internal (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_hand
       return 0;
     }
 
-  if (req_handle->stmt_type == CUBRID_STMT_SELECT || req_handle->stmt_type == CUBRID_STMT_GET_STATS
-      || req_handle->stmt_type == CUBRID_STMT_CALL || req_handle->stmt_type == CUBRID_STMT_CALL_SP
-      || req_handle->stmt_type == CUBRID_STMT_EVALUATE || force_close)
+  /* with an upload open the CAS refuses a close, so it waits for the next PREPARE as the others do */
+  if ((req_handle->stmt_type == CUBRID_STMT_SELECT || req_handle->stmt_type == CUBRID_STMT_GET_STATS
+       || req_handle->stmt_type == CUBRID_STMT_CALL || req_handle->stmt_type == CUBRID_STMT_CALL_SP
+       || req_handle->stmt_type == CUBRID_STMT_EVALUATE || force_close) && !hm_stream_upload_open (con_handle))
     {
       goto send_close_handle_msg;
     }
@@ -7441,4 +7446,352 @@ get_charset_type (char type)
       charset = (type & CCI_CHARSET_MASK);
     }
   return charset;
+}
+
+/* send a stream request already in net_buf and take the reply, which starts with the result code */
+static int
+qe_stream_request (T_CON_HANDLE * con_handle, T_NET_BUF * net_buf, char **result_msg, int *result_msg_size,
+		   T_CCI_ERROR * err_buf)
+{
+  int err_code;
+
+  /* the family (45-51) came with PROTOCOL_V13, and an older CAS closes the connection on a code it does not know */
+  if (!hm_broker_understand_the_protocol (hm_get_broker_version (con_handle), PROTOCOL_V13)
+      || hm_cas_predates_streams (con_handle))
+    {
+      net_buf_clear (net_buf);
+      return CCI_ER_NOT_IMPLEMENTED;
+    }
+
+  if (net_buf->err_code < 0)
+    {
+      err_code = net_buf->err_code;
+      net_buf_clear (net_buf);
+      return err_code;
+    }
+
+  err_code = net_send_msg (con_handle, net_buf->data, net_buf->data_size);
+  net_buf_clear (net_buf);
+  if (err_code < 0)
+    {
+      return err_code;
+    }
+
+  return net_recv_msg (con_handle, result_msg, result_msg_size, err_buf);
+}
+
+/*
+ * qe_stream_bad_reply () - A reply that does not parse: the CAS that sent it cannot be trusted with the rest of the
+ *   session. The connection goes as on a lost reply, which also ends on the server whatever the request opened there,
+ *   and a connection in auto-commit leaves the transaction that went with it.
+ */
+static int
+qe_stream_bad_reply (T_CON_HANDLE * con_handle)
+{
+  hm_ssl_free (con_handle);
+  CLOSE_SOCKET (con_handle->sock_fd);
+  con_handle->sock_fd = INVALID_SOCKET;
+  hm_stream_lost (con_handle);
+  if (con_handle->autocommit_mode == CCI_AUTOCOMMIT_TRUE)
+    {
+      con_handle->con_status = CCI_CON_STATUS_OUT_TRAN;
+    }
+  return CCI_ER_COMMUNICATION;
+}
+
+/* the 64-bit value a reply carries right after its result code */
+static int
+qe_stream_take_bigint (T_CON_HANDLE * con_handle, char *result_msg, int result_msg_size, INT64 * value)
+{
+  if (result_msg == NULL || result_msg_size < NET_SIZE_INT + NET_SIZE_BIGINT)
+    {
+      return qe_stream_bad_reply (con_handle);
+    }
+
+  NET_STR_TO_BIGINT (*value, result_msg + NET_SIZE_INT);
+  return CCI_ER_NO_ERROR;
+}
+
+/* the count an END-shaped reply carries after its result code */
+static int
+qe_stream_take_count (T_CON_HANDLE * con_handle, int err_code, char *result_msg, int result_msg_size, long long *count)
+{
+  INT64 value = 0;
+  int error;
+
+  if (err_code < 0)
+    {
+      return err_code;
+    }
+  error = qe_stream_take_bigint (con_handle, result_msg, result_msg_size, &value);
+  if (error < 0)
+    {
+      return error;
+    }
+
+  if (count != NULL)
+    {
+      *count = (long long) value;
+    }
+  return err_code;
+}
+
+/* the length, the flags and the bytes a READ_OPEN or READ reply carries at offset, into buf of max bytes */
+static int
+qe_stream_take_read (T_CON_HANDLE * con_handle, char *result_msg, int result_msg_size, int offset, char *buf, int max,
+		     int *nread, char *reply_flags)
+{
+  char *ptr, *end;
+  int n, flags;
+
+  if (result_msg == NULL || result_msg_size - offset < 2 * NET_SIZE_INT)
+    {
+      return qe_stream_bad_reply (con_handle);
+    }
+  ptr = result_msg + offset;
+  end = result_msg + result_msg_size;
+  NET_STR_TO_INT (n, ptr);
+  ptr += NET_SIZE_INT;
+  NET_STR_TO_INT (flags, ptr);
+  ptr += NET_SIZE_INT;
+  if (n < 0 || n > max || end - ptr < n)
+    {
+      return qe_stream_bad_reply (con_handle);
+    }
+
+  if (n > 0)
+    {
+      memcpy (buf, ptr, n);
+    }
+  *nread = n;
+  *reply_flags = (char) flags;
+  return CCI_ER_NO_ERROR;
+}
+
+/* with CAS_STREAM_FLAG_FINAL in flags, data is the whole value and *count gets what END would return */
+int
+qe_stream_init (T_CON_HANDLE * con_handle, int stream_kind, const char *config, int config_len, char flags,
+		const char *data, int data_len, long long *count, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_INIT;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size = 0;
+
+  /* the CAS keeps no auto-commit mode for a driver-opened stream, so the open says it, as the download calls do */
+  flags &= CAS_STREAM_FLAG_FINAL;
+  if (con_handle->autocommit_mode == CCI_AUTOCOMMIT_TRUE)
+    {
+      flags |= CAS_STREAM_FLAG_AUTO_COMMIT;
+    }
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_INT (&net_buf, stream_kind);
+  ADD_ARG_BYTES (&net_buf, config, config_len);
+  ADD_ARG_BYTES (&net_buf, &flags, 1);
+  ADD_ARG_BYTES (&net_buf, data, data_len);
+
+  err_code = qe_stream_request (con_handle, &net_buf, &result_msg, &result_msg_size, err_buf);
+  if (flags & CAS_STREAM_FLAG_FINAL)
+    {
+      err_code = qe_stream_take_count (con_handle, err_code, result_msg, result_msg_size, count);
+    }
+  FREE_MEM (result_msg);
+
+  return err_code;
+}
+
+int
+qe_stream_abort (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_ABORT;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+
+  return qe_stream_request (con_handle, &net_buf, NULL, NULL, err_buf);
+}
+
+/* *result gets the value the kind defines, such as the rows COPY loaded */
+int
+qe_stream_end (T_CON_HANDLE * con_handle, long long *result, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_END;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size = 0;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+
+  err_code = qe_stream_request (con_handle, &net_buf, &result_msg, &result_msg_size, err_buf);
+  err_code = qe_stream_take_count (con_handle, err_code, result_msg, result_msg_size, result);
+  FREE_MEM (result_msg);
+
+  return err_code;
+}
+
+int
+qe_stream_send_data (T_CON_HANDLE * con_handle, const char *data, int data_len, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_SEND_DATA;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_BYTES (&net_buf, data, data_len);
+
+  return qe_stream_request (con_handle, &net_buf, NULL, NULL, err_buf);
+}
+
+/* the last chunk and END in one request */
+int
+qe_stream_send_final (T_CON_HANDLE * con_handle, const char *data, int data_len, long long *count,
+		      T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_SEND_DATA;
+  char flags = CAS_STREAM_FLAG_FINAL;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size = 0;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_BYTES (&net_buf, data, data_len);
+  ADD_ARG_BYTES (&net_buf, &flags, 1);
+
+  err_code = qe_stream_request (con_handle, &net_buf, &result_msg, &result_msg_size, err_buf);
+  err_code = qe_stream_take_count (con_handle, err_code, result_msg, result_msg_size, count);
+  FREE_MEM (result_msg);
+
+  return err_code;
+}
+
+/* the auto-commit bit the download requests carry, as RELEASE carries its auto-commit byte */
+static char
+qe_stream_read_flags (T_CON_HANDLE * con_handle, char flags)
+{
+  /* the caller sets RELEASE_AT_EOF only: CCI sets AUTO_COMMIT, 0x02, from the connection's mode */
+  flags &= CAS_STREAM_FLAG_RELEASE_AT_EOF;
+  if (con_handle->autocommit_mode == CCI_AUTOCOMMIT_TRUE)
+    {
+      flags |= CAS_STREAM_FLAG_AUTO_COMMIT;
+    }
+  return flags;
+}
+
+/* the first piece, up to first_max bytes (0 opens only), comes back with the handle */
+int
+qe_stream_read_open (T_CON_HANDLE * con_handle, int stream_kind, const char *config, int config_len, int first_max,
+		     char flags, long long *handle, char *buf, int *nread, char *reply_flags, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_READ_OPEN;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size = 0;
+  INT64 value = 0;
+
+  *handle = 0;
+  *nread = 0;
+  *reply_flags = 0;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  flags = qe_stream_read_flags (con_handle, flags);
+  ADD_ARG_INT (&net_buf, stream_kind);
+  ADD_ARG_BYTES (&net_buf, config, config_len);
+  ADD_ARG_INT (&net_buf, first_max);
+  ADD_ARG_BYTES (&net_buf, &flags, 1);
+
+  err_code = qe_stream_request (con_handle, &net_buf, &result_msg, &result_msg_size, err_buf);
+  if (err_code >= 0)
+    {
+      err_code = qe_stream_take_bigint (con_handle, result_msg, result_msg_size, &value);
+    }
+  if (err_code >= 0)
+    {
+      *handle = (long long) value;
+      err_code =
+	qe_stream_take_read (con_handle, result_msg, result_msg_size, NET_SIZE_INT + NET_SIZE_BIGINT, buf, first_max,
+			     nread, reply_flags);
+    }
+  FREE_MEM (result_msg);
+  if (err_code < 0)
+    {
+      /* a handle from a reply that failed afterwards went with the connection qe_stream_bad_reply () closed */
+      *handle = 0;
+      *nread = 0;
+      *reply_flags = 0;
+    }
+  if (err_code >= 0 && *handle != 0 && !(*reply_flags & CAS_STREAM_FLAG_RELEASED))
+    {
+      hm_stream_handle_add (con_handle, *handle);
+    }
+
+  return err_code;
+}
+
+int
+qe_stream_read (T_CON_HANDLE * con_handle, long long handle, char *buf, int max, char flags, int *nread,
+		char *reply_flags, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_READ;
+  int err_code;
+  char *result_msg = NULL;
+  int result_msg_size = 0;
+
+  *nread = 0;
+  *reply_flags = 0;
+
+  flags = qe_stream_read_flags (con_handle, flags);
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_BIGINT (&net_buf, (INT64) handle);
+  ADD_ARG_INT (&net_buf, max);
+  ADD_ARG_BYTES (&net_buf, &flags, 1);
+
+  err_code = qe_stream_request (con_handle, &net_buf, &result_msg, &result_msg_size, err_buf);
+  if (err_code >= 0)
+    {
+      err_code =
+	qe_stream_take_read (con_handle, result_msg, result_msg_size, NET_SIZE_INT, buf, max, nread, reply_flags);
+    }
+  FREE_MEM (result_msg);
+  /* the server releases a handle whose read failed there, and a server error says nothing of RELEASED */
+  if ((err_code >= 0 && (*reply_flags & CAS_STREAM_FLAG_RELEASED)) || err_code == CCI_ER_DBMS)
+    {
+      hm_stream_handle_remove (con_handle, handle);
+    }
+
+  return err_code;
+}
+
+int
+qe_stream_release (T_CON_HANDLE * con_handle, long long handle, T_CCI_ERROR * err_buf)
+{
+  T_NET_BUF net_buf;
+  char func_code = CAS_FC_STREAM_RELEASE;
+  char autocommit_flag = (char) con_handle->autocommit_mode;
+  int err_code;
+
+  net_buf_init (&net_buf);
+  net_buf_cp_str (&net_buf, &func_code, 1);
+  ADD_ARG_BIGINT (&net_buf, (INT64) handle);
+  ADD_ARG_BYTES (&net_buf, &autocommit_flag, 1);
+
+  err_code = qe_stream_request (con_handle, &net_buf, NULL, NULL, err_buf);
+  if (err_code >= 0)
+    {
+      hm_stream_handle_remove (con_handle, handle);
+    }
+
+  return err_code;
 }

@@ -166,6 +166,9 @@
 #define CCI_EXEC_THREAD			0x10
 #define CCI_EXEC_NOT_USED		0x20	/* not currently used */
 #define CCI_EXEC_RETURN_GENERATED_KEYS	0x40
+/* the caller sends the data the statement takes (COPY ... FROM STDIN) with the cci_stream_* calls; the CAS gives up a
+ * stream a statement opens without it */
+#define CCI_EXEC_STREAM			((char) 0x80)
 
 #define CCI_FETCH_SENSITIVE		1
 
@@ -993,6 +996,28 @@ extern "C"
 				    char *attr_name, char flag, T_CCI_ERROR * err_buf);
   extern int cci_is_shard (int con_h_id, T_CCI_ERROR * err_buf);
   extern int cci_get_cas_info (int mapped_conn_id, char *info_buf, int buf_length, T_CCI_ERROR * err_buf);
+
+  /* COPY ... FROM STDIN: run the statement with cci_execute () and CCI_EXEC_STREAM, send its data with
+   * cci_stream_send_data (), and end it with cci_stream_end_result () or cci_stream_send_final (), or give it up with
+   * cci_stream_abort (). A refusal by the server returns CCI_ER_DBMS with err_buf->err_code, and the message gives the
+   * reason:
+   *   -1217  any other failure of the stream
+   *   -1218  no stream is open
+   *   -1219  the statement opened its stream for an execute without CCI_EXEC_STREAM, or through
+   *          cci_prepare_and_execute (), which takes no flags; the CAS gave the stream up
+   *   -1220  the request is out of order
+   * The statement may also refuse with an error code of its own. A broker older than PROTOCOL_V13 gets no request: the
+   * call returns CCI_ER_NOT_IMPLEMENTED and the connection stays usable. A SHARD broker carries no stream and returns
+   * CAS_ER_NOT_IMPLEMENTED. */
+
+  extern int cci_stream_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf);
+  /* result: the rows COPY loaded, at full width */
+  extern int cci_stream_end_result (int mapped_conn_id, long long *result, T_CCI_ERROR * err_buf);
+  /* cci_stream_end_result () as an int: a value above INT_MAX comes back as INT_MAX. A negative return is an error. */
+  extern int cci_stream_end (int mapped_conn_id, T_CCI_ERROR * err_buf);
+  extern int cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf);
+  extern int cci_stream_send_final (int mapped_conn_id, const char *data, int data_len, long long *count,
+				    T_CCI_ERROR * err_buf);
 
 #ifdef __cplusplus
 }

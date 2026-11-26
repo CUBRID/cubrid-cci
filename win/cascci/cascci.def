@@ -108,6 +108,12 @@ EXPORTS
 	cci_get_holdability
 	cci_get_cas_info
 	
+	cci_stream_send_data
+	cci_stream_end
+	cci_stream_end_result
+	cci_stream_abort
+	cci_stream_send_final
+	
 	cci_log_get
 	cci_log_finalize
 	cci_log_write

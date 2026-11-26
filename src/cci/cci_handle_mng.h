@@ -86,6 +86,8 @@
 
 #define MAX_CON_HANDLE                  4096
 
+#define CON_STREAM_HANDLE_SLOTS         8
+
 /************************************************************************
  * PUBLIC TYPE DEFINITIONS						*
  ************************************************************************/
@@ -241,6 +243,10 @@ typedef struct
   char broker_info[BROKER_INFO_SIZE];
   char cas_info[CAS_INFO_SIZE];
   int cas_id;
+  /* the download handles the CAS holds in this transaction; one past the slots sets stream_handle_overflow */
+  long long stream_handles[CON_STREAM_HANDLE_SLOTS];
+  int stream_handle_count;
+  char stream_handle_overflow;
   T_CCI_SESSION_ID session_id;
   T_CCI_DATASOURCE *datasource;
   CCI_MHT_TABLE *stmt_pool;
@@ -364,6 +370,14 @@ extern bool hm_is_empty_session (T_CCI_SESSION_ID * id);
 extern void hm_make_empty_session (T_CCI_SESSION_ID * id);
 
 extern void hm_force_close_connection (T_CON_HANDLE * con_handle);
+
+extern void hm_stream_handle_add (T_CON_HANDLE * con_handle, long long handle);
+extern void hm_stream_handle_remove (T_CON_HANDLE * con_handle, long long handle);
+extern void hm_stream_handle_clear (T_CON_HANDLE * con_handle);
+extern void hm_stream_lost (T_CON_HANDLE * con_handle);
+extern bool hm_stream_holds_tran (T_CON_HANDLE * con_handle);
+extern bool hm_cas_predates_streams (T_CON_HANDLE * con_handle);
+extern bool hm_stream_upload_open (T_CON_HANDLE * con_handle);
 
 extern void hm_ssl_free (T_CON_HANDLE * con_handle);
 
