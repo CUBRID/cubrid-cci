@@ -1028,6 +1028,8 @@ extern "C"
   extern int cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf);
   extern int cci_stream_send_final (int mapped_conn_id, const char *data, int data_len, long long *count,
 				    T_CCI_ERROR * err_buf);
+  /* A download handle lasts only as long as the transaction that opened it: a commit ends it, and in auto-commit so
+   * does any other statement on the connection. A read on it then fails with -1218. */
   extern int cci_stream_read_open (int mapped_conn_id, int stream_kind, const char *config, int config_len,
 				   int first_max, char flags, long long *handle, char *buf, int *nread,
 				   char *reply_flags, T_CCI_ERROR * err_buf);
