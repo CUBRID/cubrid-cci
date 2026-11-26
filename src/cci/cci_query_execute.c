@@ -188,7 +188,7 @@ static int bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void
 				  bool set_default_value, bool typed_null);
 static int execute_array_info_decode (char *buf, int size, char flag, T_CCI_QUERY_RESULT ** qr, int *res_remain_size);
 static T_CCI_U_TYPE get_basic_utype (T_CCI_U_EXT_TYPE u_ext_type);
-static int parameter_info_decode (char *buf, int size, int num_param, T_CCI_PARAM_INFO ** res_param);
+static int parameter_info_decode (char *buf, int size, int num_param, bool with_name, T_CCI_PARAM_INFO ** res_param);
 static int decode_fetch_result (T_CON_HANDLE * con_handle, T_REQ_HANDLE * req_handle, char *result_msg_org,
 				char *result_msg_start, int result_msg_size);
 static int qe_close_req_handle_internal (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, bool force_close);
@@ -4331,7 +4331,9 @@ qe_get_param_info (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, T_CCI_P
 
   if (res_param)
     {
-      err_code = parameter_info_decode (result_msg + 4, result_msg_size - 4, num_param, res_param);
+      bool with_name = hm_broker_understand_the_protocol (hm_get_broker_version (con_handle), PROTOCOL_V13);
+
+      err_code = parameter_info_decode (result_msg + 4, result_msg_size - 4, num_param, with_name, res_param);
       if (err_code < 0)
 	{
 	  num_param = err_code;
@@ -7072,7 +7074,7 @@ get_basic_utype (T_CCI_U_EXT_TYPE u_ext_type)
 }
 
 static int
-parameter_info_decode (char *buf, int size, int num_param, T_CCI_PARAM_INFO ** res_param)
+parameter_info_decode (char *buf, int size, int num_param, bool with_name, T_CCI_PARAM_INFO ** res_param)
 {
   T_CCI_PARAM_INFO *param;
   int i;
@@ -7139,6 +7141,26 @@ parameter_info_decode (char *buf, int size, int num_param, T_CCI_PARAM_INFO ** r
       NET_STR_TO_INT (param[i].precision, buf);
       size -= 4;
       buf += 4;
+
+      if (with_name)
+	{
+	  int name_size;
+
+	  if (size < 4)
+	    {
+	      goto param_decode_error;
+	    }
+	  NET_STR_TO_INT (name_size, buf);
+	  size -= 4;
+	  buf += 4;
+
+	  if (name_size < 1 || size < name_size)
+	    {
+	      goto param_decode_error;
+	    }
+	  size -= name_size;
+	  buf += name_size;
+	}
     }
 
   *res_param = param;
